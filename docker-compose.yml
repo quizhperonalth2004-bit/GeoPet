@@ -1,0 +1,32 @@
+version: '3.8'
+
+services:
+  app:
+    build: .
+    container_name: petbook-server
+    ports:
+      - "3010:3010"
+    environment:
+      - NODE_ENV=development
+      - PORT=3010
+      - MONGO_URI=mongodb://mongo:27017/bd_petbook
+      - JWT_SECRET=fabricio29
+      - CLOUDINARY_CLOUD_NAME=dlhh5olhn
+      - CLOUDINARY_API_KEY=948228499648134
+      - CLOUDINARY_API_SECRET=jzBN3CWUVz2lMBYVFWFKLi7Rjio
+    depends_on:
+      - mongo
+    volumes:
+      - ./:/usr/src/app
+      - /usr/src/app/node_modules
+
+  mongo:
+    image: mongo:latest
+    container_name: petbook-mongodb
+    ports:
+      - "27017:27017"
+    volumes:
+      - mongodb_data:/data/db
+
+volumes:
+  mongodb_data:
