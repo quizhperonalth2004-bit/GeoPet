@@ -9,6 +9,8 @@ router.post('/new', upload, postController.createPost);
 
 // Ruta para registrar avistamientos con geolocalización (protegida por JWT)
 router.post('/:id/sightings', authMiddleware.verifyToken, upload, postController.addSighting);
+router.post('/:id/sighting', authMiddleware.verifyToken, upload, postController.addSighting);
+router.post('/:id/mark-sighting', authMiddleware.verifyToken, upload, postController.addSighting);
 
 // Rutas fijas antes de las parametrizadas
 router.get('/list', postController.getPostsAll);

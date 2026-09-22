@@ -20,7 +20,10 @@ const postController = {
             if (process.env.NODE_ENV !== 'test') {
                 console.error('Error al registrar avistamiento:', error);
             }
-            res.status(error.statusCode || 500).json({ error: error.message || 'Error al registrar avistamiento' });
+            res.status(error.statusCode || 500).json({
+                message: error.message || 'Error al registrar avistamiento',
+                error: error.message || 'Error al registrar avistamiento'
+            });
         }
     },
 
@@ -36,7 +39,7 @@ const postController = {
 
     getPost: async (req, res) => {
         try {
-            const enrichedPosts = await postService.getPost();
+            const enrichedPosts = await postService.getPost(req.query);
             res.send(enrichedPosts);
         } catch (error) {
             console.error('Error al obtener posts:', error);

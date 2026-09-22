@@ -64,10 +64,20 @@ class UserService {
         return newUser;
     }
 
-    async updatePassword(email, newPassword) {
+    async updatePassword(email, newPassword, currentPassword) {
         const user = await User.findOne({ email });
         if (!user) {
             return null;
+        }
+
+        if (currentPassword) {
+            const bcrypt = require('bcryptjs');
+            const isMatch = await bcrypt.compare(currentPassword, user.password);
+            if (!isMatch) {
+                const error = new Error('La contraseña actual ingresada es incorrecta.');
+                error.statusCode = 400;
+                throw error;
+            }
         }
 
         await user.updatePassword(newPassword);

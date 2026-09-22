@@ -2,7 +2,8 @@ const commentService = require('../services/comment.service');
 
 const commentController = {
     createComment: async (req, res) => {
-        const { content, forumId, createdBy } = req.body;
+        const { content, forumId } = req.body;
+        const createdBy = (req.user && (req.user.userId || req.user.id || req.user._id)) || req.body.createdBy;
         try {
             const savedComment = await commentService.createComment({ content, forumId, userId: createdBy });
             res.status(201).json(savedComment);
@@ -24,7 +25,8 @@ const commentController = {
     },
 
     createCommentPost: async (req, res) => {
-        const { content, postId, createdBy } = req.body;
+        const { content, postId } = req.body;
+        const createdBy = (req.user && (req.user.userId || req.user.id || req.user._id)) || req.body.createdBy;
         try {
             const savedComment = await commentService.createCommentPost({ content, postId, userId: createdBy });
             res.status(201).json(savedComment);

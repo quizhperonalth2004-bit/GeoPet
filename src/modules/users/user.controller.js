@@ -60,15 +60,31 @@ const userController = {
 
     updatePassword: async (req, res) => {
         const { email } = req.params;
-        const { password } = req.body;
+        const { password, currentPassword, oldPassword } = req.body;
 
         try {
-            const user = await userService.updatePassword(email, password);
+            if (!password || typeof password !== 'string' || password.length < 6) {
+                return res.status(400).json({ message: 'La nueva contraseña debe tener al menos 6 caracteres.' });
+            }
+
+            // Validar que el usuario autenticado solo pueda actualizar su propia cuenta a menos que sea administrador
+            const tokenEmail = req.user && req.user.email;
+            const tokenRole = req.user && (req.user.rol || req.user.role);
+
+            if (tokenRole !== 'admin' && tokenEmail && tokenEmail.toLowerCase() !== email.toLowerCase()) {
+                return res.status(403).json({ message: 'Acceso denegado: No tienes autorización para modificar la contraseña de este usuario.' });
+            }
+
+            const prevPassword = currentPassword || oldPassword;
+            const user = await userService.updatePassword(email, password, prevPassword);
             if (!user) {
                 return res.status(404).json({ message: 'No existe usuario registrado con este correo electrónico.' });
             }
             res.status(200).json({ message: 'Contraseña actualizada con éxito.' });
         } catch (error) {
+            if (error.statusCode) {
+                return res.status(error.statusCode).json({ message: error.message });
+            }
             console.error('Error al actualizar la contraseña:', error);
             res.status(500).json({ message: 'Hubo un error al actualizar la contraseña. Por favor, inténtalo de nuevo más tarde.' });
         }

@@ -3,7 +3,8 @@ const reactionService = require('../services/reaction.service');
 const reactionController = {
     reactionCreate: async (req, res) => {
         try {
-            const { userId, postId } = req.body;
+            const userId = (req.user && (req.user.userId || req.user.id || req.user._id)) || req.body.userId;
+            const { postId } = req.body;
             const newReaction = await reactionService.createReaction(userId, postId);
             res.status(201).json(newReaction);
         } catch (error) {
@@ -14,7 +15,8 @@ const reactionController = {
 
     checkUserReaction: async (req, res) => {
         try {
-            const { userId, postId } = req.query;
+            const userId = (req.user && (req.user.userId || req.user.id || req.user._id)) || req.query.userId;
+            const { postId } = req.query;
             const result = await reactionService.checkUserReaction(userId, postId);
             res.status(200).json(result);
         } catch (error) {

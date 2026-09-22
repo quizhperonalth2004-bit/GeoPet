@@ -1,6 +1,7 @@
 const Profile = require('./models/profile.model');
 const User = require('./models/user.model');
 const cloudinary = require('../../config/cloudinary');
+const fs = require('fs');
 
 class ProfileService {
     async createProfile(data, files) {
@@ -13,23 +14,49 @@ class ProfileService {
 
         let profileImageUrl = '';
         if (files && files.photo_profile && files.photo_profile.length > 0) {
-            const result = await cloudinary.uploader.upload(files.photo_profile[0].path, {
-                folder: 'profiles',
-                transformation: [{ width: 300, height: 300, crop: 'fill' }]
-            });
-            if (result && result.secure_url) {
-                profileImageUrl = result.secure_url;
+            const filePath = files.photo_profile[0].path;
+            try {
+                const result = await cloudinary.uploader.upload(filePath, {
+                    folder: 'profiles',
+                    transformation: [{ width: 300, height: 300, crop: 'fill' }]
+                });
+                if (result && result.secure_url) {
+                    profileImageUrl = result.secure_url;
+                }
+            } catch (err) {
+                console.warn('[ProfileService] Error al subir foto de perfil a Cloudinary:', err.message);
+            } finally {
+                try {
+                    await fs.promises.unlink(filePath);
+                } catch (unlinkErr) {
+                    if (unlinkErr.code !== 'ENOENT') {
+                        console.warn('[ProfileService] Error al eliminar foto de perfil temporal:', unlinkErr.message);
+                    }
+                }
             }
         }
 
         let coverImageUrl = '';
         if (files && files.photo_cover && files.photo_cover.length > 0) {
-            const result = await cloudinary.uploader.upload(files.photo_cover[0].path, {
-                folder: 'covers',
-                transformation: [{ width: 1200, height: 300, crop: 'fill' }]
-            });
-            if (result && result.secure_url) {
-                coverImageUrl = result.secure_url;
+            const filePath = files.photo_cover[0].path;
+            try {
+                const result = await cloudinary.uploader.upload(filePath, {
+                    folder: 'covers',
+                    transformation: [{ width: 1200, height: 300, crop: 'fill' }]
+                });
+                if (result && result.secure_url) {
+                    coverImageUrl = result.secure_url;
+                }
+            } catch (err) {
+                console.warn('[ProfileService] Error al subir foto de portada a Cloudinary:', err.message);
+            } finally {
+                try {
+                    await fs.promises.unlink(filePath);
+                } catch (unlinkErr) {
+                    if (unlinkErr.code !== 'ENOENT') {
+                        console.warn('[ProfileService] Error al eliminar foto de portada temporal:', unlinkErr.message);
+                    }
+                }
             }
         }
 

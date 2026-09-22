@@ -26,13 +26,27 @@ const authController = {
         return authMiddleware.verifyToken(req, res, next);
     },
 
-    resetPassword: async (req, res) => {
-        const { email, phone } = req.body;
+    forgotPassword: async (req, res) => {
+        const { email } = req.body;
         try {
-            const result = await authService.resetPassword(email, phone);
+            const result = await authService.forgotPassword(email);
             res.status(200).json(result);
         } catch (error) {
-            console.error('Error al restablecer la contraseña:', error);
+            console.error('[AuthController] Error en forgotPassword:', error);
+            if (error.statusCode) {
+                return res.status(error.statusCode).json({ message: error.message });
+            }
+            res.status(500).json({ message: 'Hubo un error al procesar la solicitud de recuperación de contraseña.' });
+        }
+    },
+
+    resetPassword: async (req, res) => {
+        const { email, phone, code, newPassword } = req.body;
+        try {
+            const result = await authService.resetPassword({ email, phone, code, newPassword });
+            res.status(200).json(result);
+        } catch (error) {
+            console.error('[AuthController] Error al restablecer la contraseña:', error);
             if (error.statusCode) {
                 return res.status(error.statusCode).json({ message: error.message });
             }
@@ -41,17 +55,20 @@ const authController = {
     },
 
     googleLogin: async (req, res) => {
-        const idToken = req.body.idToken || req.body.credential || req.body.token;
-        const accessToken = req.body.accessToken || req.body.access_token;
         try {
-            const result = await authService.googleLogin({ idToken, accessToken });
+            console.log('[GOOGLE_AUTH_DEBUG] Request body recibido en googleLogin:', JSON.stringify(req.body, null, 2));
+            const result = await authService.googleLogin(req.body);
             res.status(200).json(result);
         } catch (error) {
-            console.error('[AuthController] Error en googleLogin:', error);
+            console.error('[GOOGLE_AUTH_DEBUG]: Error completo en googleLogin:', error.stack || error);
             if (error.statusCode) {
                 return res.status(error.statusCode).json({ message: error.message });
             }
-            res.status(500).json({ message: 'Error interno al autenticar con Google.', error: error.message });
+            res.status(500).json({
+                message: error.message || 'Error interno al autenticar con Google.',
+                error: error.message,
+                stack: process.env.NODE_ENV === 'development' ? error.stack : undefined
+            });
         }
     }
 };

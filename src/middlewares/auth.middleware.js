@@ -19,8 +19,13 @@ const authMiddleware = {
             return res.status(401).json({ message: 'Token inválido o expirado por cierre de sesión.' });
         }
 
+        const jwtSecret = process.env.JWT_SECRET;
+        if (!jwtSecret) {
+            console.error('[AuthMiddleware] Error crítico de seguridad: JWT_SECRET no está configurado en las variables de entorno.');
+            return res.status(500).json({ message: 'Error interno de configuración de seguridad del servidor.' });
+        }
+
         try {
-            const jwtSecret = process.env.JWT_SECRET || 'fabricio29';
             const decoded = jwt.verify(token, jwtSecret);
             req.user = decoded;
             next();

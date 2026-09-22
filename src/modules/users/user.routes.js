@@ -11,10 +11,10 @@ router.get('/:id', userController.getUserById);
 router.post('/:id/delete', [authMiddleware.verifyToken, authMiddleware.verifyAdmin], userController.deleteUser);
 router.delete('/:id', [authMiddleware.verifyToken, authMiddleware.verifyAdmin], userController.deleteUser);
 router.get('/email/:email', userController.getUserByEmail);
-router.post('/:email/updatePassword', userController.updatePassword);
+router.post('/:email/updatePassword', authMiddleware.verifyToken, userController.updatePassword);
 router.post('/:userId/updateInteraction', userController.updateInteraction);
 router.patch('/:id/role', [authMiddleware.verifyToken, authMiddleware.verifyAdmin], userController.updateUserRole);
 router.put('/profile', authMiddleware.verifyToken, userController.updateUserProfile);
-router.put('/profile/:id', userController.updateUserProfile);
+router.put('/profile/:id', authMiddleware.verifyToken, userController.updateUserProfile);
 
 module.exports = router;

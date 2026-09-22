@@ -115,4 +115,181 @@ describe('Auth Module Tests', () => {
         expect(res.status).toBe(409);
         expect(res.body.message).toContain('Este correo ya está registrado con contraseña');
     });
+
+    describe('Flujo de Recuperación de Contraseña mediante OTP por Correo', () => {
+        it('POST /api/v1/auth/forgot-password debe generar código OTP y responder 200', async () => {
+            const mockUser = {
+                _id: 'user123',
+                name: 'Carlos',
+                email: 'carlos@test.com',
+                auth_provider: 'local',
+                save: jest.fn().mockResolvedValue(true)
+            };
+
+            jest.spyOn(User, 'findOne').mockResolvedValue(mockUser);
+
+            const res = await request(app)
+                .post('/api/v1/auth/forgot-password')
+                .send({ email: 'carlos@test.com' });
+
+            expect(res.status).toBe(200);
+            expect(res.body.message).toContain('Código de recuperación enviado');
+            expect(mockUser.reset_password_otp).toBeDefined();
+            expect(mockUser.reset_password_otp).toHaveLength(6);
+            expect(mockUser.save).toHaveBeenCalled();
+        });
+
+        it('POST /api/v1/auth/forgot-password debe responder 404 si el usuario no existe', async () => {
+            jest.spyOn(User, 'findOne').mockResolvedValue(null);
+
+            const res = await request(app)
+                .post('/api/v1/auth/forgot-password')
+                .send({ email: 'inexistente@test.com' });
+
+            expect(res.status).toBe(404);
+            expect(res.body.message).toContain('No existe ninguna cuenta registrada');
+        });
+
+        it('POST /api/v1/auth/reset-password debe validar OTP y actualizar contraseña con 200', async () => {
+            const mockUser = {
+                _id: 'user123',
+                email: 'carlos@test.com',
+                auth_provider: 'local',
+                reset_password_otp: '123456',
+                reset_password_expires: new Date(Date.now() + 10 * 60 * 1000),
+                updatePassword: jest.fn().mockResolvedValue(true)
+            };
+
+            jest.spyOn(User, 'findOne').mockResolvedValue(mockUser);
+
+            const res = await request(app)
+                .post('/api/v1/auth/reset-password')
+                .send({
+                    email: 'carlos@test.com',
+                    code: '123456',
+                    newPassword: 'NuevaPassword123!'
+                });
+
+            expect(res.status).toBe(200);
+            expect(res.body.message).toContain('Contraseña restablecida exitosamente');
+            expect(mockUser.updatePassword).toHaveBeenCalledWith('NuevaPassword123!');
+        });
+
+        it('POST /api/v1/auth/reset-password debe rechazar con 400 si el código es incorrecto', async () => {
+            const mockUser = {
+                _id: 'user123',
+                email: 'carlos@test.com',
+                auth_provider: 'local',
+                reset_password_otp: '654321',
+                reset_password_expires: new Date(Date.now() + 10 * 60 * 1000),
+                updatePassword: jest.fn()
+            };
+
+            jest.spyOn(User, 'findOne').mockResolvedValue(mockUser);
+
+            const res = await request(app)
+                .post('/api/v1/auth/reset-password')
+                .send({
+                    email: 'carlos@test.com',
+                    code: '000000',
+                    newPassword: 'NuevaPassword123!'
+                });
+
+            expect(res.status).toBe(400);
+            expect(res.body.message).toContain('El código de verificación es incorrecto');
+            expect(mockUser.updatePassword).not.toHaveBeenCalled();
+        });
+
+        it('POST /api/v1/auth/reset-password debe rechazar con 400 si el código ha expirado', async () => {
+            const mockUser = {
+                _id: 'user123',
+                email: 'carlos@test.com',
+                auth_provider: 'local',
+                reset_password_otp: '123456',
+                reset_password_expires: new Date(Date.now() - 5 * 60 * 1000), // Expirado hace 5 min
+                updatePassword: jest.fn()
+            };
+
+            jest.spyOn(User, 'findOne').mockResolvedValue(mockUser);
+
+            const res = await request(app)
+                .post('/api/v1/auth/reset-password')
+                .send({
+                    email: 'carlos@test.com',
+                    code: '123456',
+                    newPassword: 'NuevaPassword123!'
+                });
+
+            expect(res.status).toBe(400);
+            expect(res.body.message).toContain('El código de verificación ha expirado');
+            expect(mockUser.updatePassword).not.toHaveBeenCalled();
+        });
+
+        it('Debe resolver forgot-password bajo /auth/forgot-password, /api/v1/forgot-password y /api/v1/auth/auth/forgot-password sin 404', async () => {
+            const mockUser = {
+                _id: 'user123',
+                name: 'Carlos',
+                email: 'carlos@test.com',
+                auth_provider: 'local',
+                save: jest.fn().mockResolvedValue(true)
+            };
+
+            jest.spyOn(User, 'findOne').mockResolvedValue(mockUser);
+
+            const resDirect = await request(app)
+                .post('/auth/forgot-password')
+                .send({ email: 'carlos@test.com' });
+            expect(resDirect.status).toBe(200);
+
+            const resV1Direct = await request(app)
+                .post('/api/v1/forgot-password')
+                .send({ email: 'carlos@test.com' });
+            expect(resV1Direct.status).toBe(200);
+
+            const resRedundant = await request(app)
+                .post('/api/v1/auth/auth/forgot-password')
+                .send({ email: 'carlos@test.com' });
+            expect(resRedundant.status).toBe(200);
+        });
+    });
+
+    describe('Google Sign-In Registro en Base de Datos Limpia', () => {
+        it('Debe crear User y Profile válidos sin errores de esquema Mongoose', async () => {
+            const Profile = require('../src/modules/users/models/profile.model');
+            const authService = require('../src/modules/auth/auth.service');
+
+            // Simular DB vacía
+            jest.spyOn(User, 'findOne').mockResolvedValue(null);
+            jest.spyOn(Profile, 'findOne').mockResolvedValue(null);
+
+            const saveUserSpy = jest.spyOn(User.prototype, 'save').mockImplementation(function () {
+                this._id = '507f1f77bcf86cd799439011';
+                return Promise.resolve(this);
+            });
+            const saveProfileSpy = jest.spyOn(Profile.prototype, 'save').mockImplementation(function () {
+                this._id = '507f1f77bcf86cd799439022';
+                return Promise.resolve(this);
+            });
+
+            const { OAuth2Client } = require('google-auth-library');
+            jest.spyOn(OAuth2Client.prototype, 'verifyIdToken').mockResolvedValue({
+                getPayload: () => ({
+                    email: 'nuevo_google@example.com',
+                    given_name: 'María',
+                    family_name: 'Gómez',
+                    name: 'María Gómez',
+                    picture: 'https://lh3.googleusercontent.com/photo.jpg'
+                })
+            });
+
+            const result = await authService.googleLogin('fake-google-token');
+
+            expect(result).toBeDefined();
+            expect(result.token).toBeDefined();
+            expect(result.user.email).toBe('nuevo_google@example.com');
+            expect(result.user.auth_provider).toBe('google');
+            expect(saveUserSpy).toHaveBeenCalled();
+            expect(saveProfileSpy).toHaveBeenCalled();
+        });
+    });
 });

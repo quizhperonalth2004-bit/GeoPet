@@ -4,14 +4,55 @@ const cors = require('cors');
 const morgan = require('morgan');
 const path = require('path');
 
+const compression = require('compression');
+const helmet = require('helmet');
 const limiter = require('./middlewares/rateLimit.middleware');
 const { notFoundHandler, errorHandler } = require('./middlewares/error.middleware');
 const apiRoutes = require('./routes');
 
 const app = express();
 
-// Middlewares globales
-app.use(cors());
+// Cabeceras HTTP de seguridad con Helmet
+app.use(helmet({
+    crossOriginResourcePolicy: { policy: 'cross-origin' }
+}));
+
+// Configuración de CORS segura para clientes móviles (Capacitor) y desarrollo web
+const allowedOrigins = [
+    'http://localhost:4200',    // Angular CLI Dev
+    'http://localhost:8100',    // Ionic CLI Dev
+    'http://localhost:3010',    // Backend local
+    'capacitor://localhost',    // Capacitor iOS / Android
+    'http://localhost'          // Capacitor Android WebView fallback
+];
+
+if (process.env.ALLOWED_ORIGINS) {
+    process.env.ALLOWED_ORIGINS.split(',').forEach(origin => {
+        const trimmed = origin.trim();
+        if (trimmed && !allowedOrigins.includes(trimmed)) {
+            allowedOrigins.push(trimmed);
+        }
+    });
+}
+
+const corsOptions = {
+    origin: (origin, callback) => {
+        // Permitir solicitudes sin header Origin (apps móviles nativas, Supertest, Postman, curl)
+        if (!origin || allowedOrigins.includes(origin)) {
+            callback(null, true);
+        } else {
+            callback(new Error(`Bloqueado por política de CORS: ${origin}`));
+        }
+    },
+    credentials: true,
+    methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
+    allowedHeaders: ['Content-Type', 'Authorization']
+};
+
+app.use(cors(corsOptions));
+app.use(compression({
+    threshold: 1024 // Solo comprimir respuestas mayores a 1 KB
+}));
 app.use(express.json({ limit: '10mb' }));
 app.use(express.urlencoded({ extended: true, limit: '10mb' }));
 
@@ -38,6 +79,9 @@ app.get('/health', (req, res) => {
 
 // Montar todas las rutas API bajo /api
 app.use('/api', apiRoutes);
+
+// Montar también bajo /auth directamente para compatibilidad absoluta con clientes externos
+app.use('/auth', require('./modules/auth/auth.routes'));
 
 // Manejo de rutas no encontradas (404)
 app.use(notFoundHandler);

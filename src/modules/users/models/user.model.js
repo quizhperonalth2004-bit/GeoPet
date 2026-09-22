@@ -9,7 +9,8 @@ const userSchema = new mongoose.Schema({
     },
     last_name: {
         type: String,
-        required: true,
+        required: false,
+        default: '',
         trim: true
     },
     ci: {
@@ -31,7 +32,9 @@ const userSchema = new mongoose.Schema({
     },
     password: {
         type: String,
-        required: true
+        required: function () {
+            return this.auth_provider === 'local';
+        }
     },
     rol: {
         type: String,
@@ -54,6 +57,14 @@ const userSchema = new mongoose.Schema({
     last_interaction: {
         type: Date,
         default: Date.now
+    },
+    reset_password_otp: {
+        type: String,
+        default: null
+    },
+    reset_password_expires: {
+        type: Date,
+        default: null
     }
 });
 
@@ -77,6 +88,8 @@ userSchema.pre('findOneAndDelete', async function (next) {
 userSchema.methods.updatePassword = async function (newPassword) {
     const salt = await bcrypt.genSalt(10);
     this.password = await bcrypt.hash(newPassword, salt);
+    this.reset_password_otp = null;
+    this.reset_password_expires = null;
     await this.save();
 };
 

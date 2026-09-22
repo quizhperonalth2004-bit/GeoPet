@@ -5,6 +5,10 @@ const postSchema = new mongoose.Schema({
         type: String,
         required: true
     },
+    status: {
+        type: String,
+        required: false
+    },
     body: {
         type: String,
         required: true
@@ -61,6 +65,14 @@ const postSchema = new mongoose.Schema({
         required: false
     },
     sightings: [{
+        post: {
+            type: mongoose.Schema.Types.ObjectId,
+            ref: 'Post'
+        },
+        post_id: {
+            type: mongoose.Schema.Types.ObjectId,
+            ref: 'Post'
+        },
         user: {
             type: mongoose.Schema.Types.ObjectId,
             ref: 'User',
@@ -92,6 +104,10 @@ const postSchema = new mongoose.Schema({
 
 // Índice geoespacial para la búsqueda por ubicación
 postSchema.index({ location: '2dsphere' });
+
+// Índices compuestos para ordenación y filtrado rápido
+postSchema.index({ type: 1, createdAt: -1 });
+postSchema.index({ owner: 1, createdAt: -1 });
 
 const Post = mongoose.model('Post', postSchema);
 

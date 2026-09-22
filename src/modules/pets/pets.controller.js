@@ -3,7 +3,7 @@ const petsService = require('./pets.service');
 const petsController = {
     createPet: async (req, res) => {
         try {
-            const pet = await petsService.createPet(req.body, req.files);
+            const pet = await petsService.createPet(req.body, req.files, req.user);
             res.status(201).json(pet);
         } catch (error) {
             console.error('Error al crear mascota:', error);
@@ -35,7 +35,7 @@ const petsController = {
     changeStatusPet: async (req, res) => {
         try {
             const { petId, status } = req.body;
-            const pet = await petsService.changeStatusPet(petId, status);
+            const pet = await petsService.changeStatusPet(petId, status, req.user);
             res.status(200).json(pet);
         } catch (error) {
             console.error('Error en changeStatusPet:', error);
@@ -58,7 +58,7 @@ const petsController = {
 
     updatePet: async (req, res) => {
         try {
-            const pet = await petsService.updatePet(req.params.id, req.body);
+            const pet = await petsService.updatePet(req.params.id, req.body, req.user);
             if (!pet) {
                 return res.status(404).json({ error: 'Pet not found' });
             }
@@ -71,14 +71,14 @@ const petsController = {
 
     deletePet: async (req, res) => {
         try {
-            const pet = await petsService.deletePet(req.params.id);
+            const pet = await petsService.deletePet(req.params.id, req.user);
             if (!pet) {
                 return res.status(404).json({ error: 'Pet not found' });
             }
             res.json(pet);
         } catch (error) {
             console.error('Error en deletePet:', error);
-            res.status(500).json({ error: error.message });
+            res.status(error.statusCode || 500).json({ error: error.message });
         }
     }
 };

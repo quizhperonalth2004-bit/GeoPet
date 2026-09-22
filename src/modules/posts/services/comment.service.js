@@ -1,12 +1,12 @@
 const Comment = require('../models/comment.model');
 const Post = require('../models/post.model');
-const Forum = require('../models/forum.model');
 const Profile = require('../../users/models/profile.model');
 const User = require('../../users/models/user.model');
 const Notification = require('../models/notification.model');
 
 class CommentService {
     async createComment({ content, forumId, userId }) {
+        const Forum = require('../models/forum.model');
         const forum = await Forum.findOne({ _id: forumId, status: 'active' });
         if (!forum) {
             const error = new Error('Forum not found or inactive');

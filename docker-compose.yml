@@ -7,13 +7,13 @@ services:
     ports:
       - "3010:3010"
     environment:
-      - NODE_ENV=development
-      - PORT=3010
-      - MONGO_URI=mongodb://mongo:27017/bd_petbook
-      - JWT_SECRET=fabricio29
-      - CLOUDINARY_CLOUD_NAME=dlhh5olhn
-      - CLOUDINARY_API_KEY=948228499648134
-      - CLOUDINARY_API_SECRET=jzBN3CWUVz2lMBYVFWFKLi7Rjio
+      - NODE_ENV=${NODE_ENV:-development}
+      - PORT=${PORT:-3010}
+      - MONGO_URI=${MONGO_URI:-mongodb://mongo:27017/bd_petbook}
+      - JWT_SECRET=${JWT_SECRET}
+      - CLOUDINARY_CLOUD_NAME=${CLOUDINARY_CLOUD_NAME}
+      - CLOUDINARY_API_KEY=${CLOUDINARY_API_KEY}
+      - CLOUDINARY_API_SECRET=${CLOUDINARY_API_SECRET}
     depends_on:
       - mongo
     volumes:

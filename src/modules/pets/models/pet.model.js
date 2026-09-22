@@ -8,12 +8,14 @@ const petSchema = new mongoose.Schema({
     name: {
         type: String,
         required: true,
-        trim: true
+        trim: true,
+        default: 'Mascota avistada'
     },
     breed: {
         type: String,
         required: true,
-        trim: true
+        trim: true,
+        default: 'Sin especificar'
     },
     sex: {
         type: String,

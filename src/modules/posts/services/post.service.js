@@ -1,4 +1,5 @@
 const mongoose = require('mongoose');
+const fs = require('fs');
 const Post = require('../models/post.model');
 const User = require('../../users/models/user.model');
 const Profile = require('../../users/models/profile.model');
@@ -43,20 +44,41 @@ class PostService {
     }
 
     async createPost(data, files) {
-        let { type, body, coordinates, reward, owner, pet, address } = data;
+        let { type, status, body, coordinates, reward, owner, pet, address } = data;
         let photo_url = '';
+
+        // Normalizar type y status (soporta 'perdido', 'avistamiento', 'Perdida', 'Avistamiento', etc.)
+        const rawType = String(type || status || '').trim().toLowerCase();
+        if (rawType.startsWith('avis')) {
+            type = 'Avistamiento';
+            status = 'avistamiento';
+        } else if (rawType.startsWith('perd')) {
+            type = 'Perdida';
+            status = 'perdido';
+        } else if (rawType.startsWith('encon')) {
+            type = 'Encontrado';
+            status = 'encontrado';
+        } else if (rawType.startsWith('adop')) {
+            type = 'Adopcion';
+            status = 'adopcion';
+        }
 
         switch (type) {
             case 'Perdida':
-            case 'Avistamiento':
                 if (!coordinates) {
                     const error = new Error('Las coordenadas son requeridas para este tipo de publicación');
                     error.statusCode = 400;
                     throw error;
                 }
                 break;
+            case 'Avistamiento':
+                if (!coordinates) {
+                    coordinates = [-79.20422, -3.99313];
+                }
+                break;
             case 'Adopcion':
-                coordinates = [-3.995008843716655, -79.20786376590335];
+                // Estándar GeoJSON y 2dsphere estricto: [longitud, latitud]
+                coordinates = [-79.20786376590335, -3.995008843716655];
                 break;
             default:
                 const error = new Error('Tipo de publicación no válido');
@@ -77,9 +99,22 @@ class PostService {
             parsedCoordinates = coordinates;
         }
 
+        // Validación y normalización estricta de orden GeoJSON: [longitud, latitud]
+        if (Array.isArray(parsedCoordinates) && parsedCoordinates.length >= 2) {
+            let lon = Number(parsedCoordinates[0]);
+            let lat = Number(parsedCoordinates[1]);
+            // Si vino invertido [lat, lon] accidentalmente (latitud en [-90, 90] y longitud en [-180, -90] o [90, 180])
+            if (Math.abs(lon) <= 90 && Math.abs(lat) > 90) {
+                parsedCoordinates = [lat, lon];
+            } else {
+                parsedCoordinates = [lon, lat];
+            }
+        }
+
         if (files && files.photo_post_url && files.photo_post_url.length > 0) {
+            const filePath = files.photo_post_url[0].path;
             try {
-                const result = await cloudinary.uploader.upload(files.photo_post_url[0].path, {
+                const result = await cloudinary.uploader.upload(filePath, {
                     folder: 'posts',
                     transformation: [{ width: 300, height: 300, crop: 'fill' }]
                 });
@@ -88,6 +123,15 @@ class PostService {
                 }
             } catch (error) {
                 console.warn('[PostService] Error al subir foto de publicación a Cloudinary:', error.message);
+            } finally {
+                // Limpieza garantizada del archivo temporal local de Multer
+                try {
+                    await fs.promises.unlink(filePath);
+                } catch (unlinkErr) {
+                    if (unlinkErr.code !== 'ENOENT') {
+                        console.warn('[PostService] Error al eliminar archivo temporal local:', unlinkErr.message);
+                    }
+                }
             }
         }
 
@@ -97,6 +141,7 @@ class PostService {
 
         const newPost = new Post({
             type,
+            status: status || (type === 'Avistamiento' ? 'avistamiento' : 'perdido'),
             body,
             address: (address && typeof address === 'string') ? address.trim() : undefined,
             location: (parsedCoordinates && parsedCoordinates.length >= 2) ? { type: 'Point', coordinates: parsedCoordinates } : undefined,
@@ -134,12 +179,12 @@ class PostService {
             const profileByUser = await Profile.findOne({ user: ownerId });
             if (profileByUser) {
                 ownerIds.push(profileByUser._id);
-            } else {
-                // Si ownerId fue el ID del perfil, obtener el user asociado
-                const profileById = await Profile.findById(ownerId);
-                if (profileById && profileById.user) {
-                    ownerIds.push(profileById.user);
-                }
+            }
+
+            // Buscar si existe un usuario para este owner (en caso de que owner sea Profile ID)
+            const profileAsOwner = await Profile.findById(ownerId);
+            if (profileAsOwner && profileAsOwner.user) {
+                ownerIds.push(profileAsOwner.user);
             }
 
             const posts = await Post.find({ owner: { $in: ownerIds } }).sort({ createdAt: -1 });
@@ -163,27 +208,77 @@ class PostService {
         }
     }
 
-    async getPost() {
-        const posts = await Post.find().sort({ createdAt: -1 });
+    async getPost(queryFilter = {}) {
+        let filter = {};
+        const rawType = String(queryFilter.type || queryFilter.status || '').trim().toLowerCase();
+        if (rawType) {
+            if (rawType.startsWith('avis')) {
+                filter = { $or: [{ type: 'Avistamiento' }, { status: 'avistamiento' }] };
+            } else if (rawType.startsWith('perd')) {
+                filter = { $or: [{ type: 'Perdida' }, { status: 'perdido' }] };
+            } else if (rawType.startsWith('encon')) {
+                filter = { $or: [{ type: 'Encontrado' }, { status: 'encontrado' }] };
+            } else if (rawType.startsWith('adop')) {
+                filter = { $or: [{ type: 'Adopcion' }, { status: 'adopcion' }] };
+            } else {
+                filter = { $or: [{ type: new RegExp(rawType, 'i') }, { status: new RegExp(rawType, 'i') }] };
+            }
+        }
+
+        const posts = await Post.find(filter)
+            .populate({
+                path: 'owner',
+                select: 'name last_name username email profile_picture'
+            })
+            .populate({
+                path: 'pet',
+                select: 'name breed sex age photo_url'
+            })
+            .populate({
+                path: 'sightings.user',
+                select: 'name last_name username email profile_picture'
+            })
+            .sort({ createdAt: -1 });
+
         if (!posts) return [];
 
-        return await Promise.all(
-            posts.map(async (post) => {
-                const ownerData = await this.fetchOwnerData(post.owner);
-                const petObj = (post.type !== 'Avistamiento' && post.pet) ? await this.fetchPetData(post.pet) : null;
-                const petPhoto = post.photo_post_url || (petObj ? petObj.photo_url : 'assets/dogs/perroLogin.jpg');
+        return posts.map((post) => {
+            const postObj = post.toObject ? post.toObject() : { ...post };
 
-                return {
-                    profilePhoto: ownerData.profile?.photo_profile_url || 'assets/dogs/perroLogin.jpg',
-                    firstName: ownerData.user?.name || 'Usuario',
-                    lastName: ownerData.user?.last_name || '',
-                    petPhoto: petPhoto,
-                    petDetails: petObj,
-                    numberPhone: ownerData.profile?.number_phone || '',
-                    ...post.toObject()
-                };
-            })
-        );
+            const ownerObj = post.owner && typeof post.owner === 'object' && post.owner._id
+                ? (post.owner.toObject ? post.owner.toObject() : post.owner)
+                : null;
+
+            const petObj = (post.type !== 'Avistamiento' && post.pet && typeof post.pet === 'object' && post.pet._id)
+                ? (post.pet.toObject ? post.pet.toObject() : post.pet)
+                : null;
+
+            const petPhoto = post.photo_post_url || (petObj ? petObj.photo_url : 'assets/dogs/perroLogin.jpg');
+            const profilePhoto = ownerObj?.profile_picture || 'assets/default-avatar.png';
+            const firstName = ownerObj?.name || 'Usuario';
+            const lastName = ownerObj?.last_name || '';
+
+            const userDetails = {
+                _id: ownerObj?._id,
+                name: `${firstName} ${lastName}`.trim() || ownerObj?.username || 'Usuario',
+                email: ownerObj?.email || '',
+                photo: profilePhoto,
+                profile_picture: profilePhoto,
+                photo_profile_url: profilePhoto
+            };
+
+            return {
+                ...postObj,
+                profilePhoto,
+                firstName,
+                lastName,
+                petPhoto,
+                petDetails: petObj,
+                numberPhone: ownerObj?.number_phone || '',
+                userDetails,
+                sightings: postObj.sightings || []
+            };
+        });
     }
 
     async getPostsAll() {
@@ -195,9 +290,11 @@ class PostService {
     }
 
     async getPostById(postId) {
+        if (!postId || !mongoose.Types.ObjectId.isValid(postId)) return null;
+
         const post = await Post.findById(postId).populate({
             path: 'sightings.user',
-            select: 'name last_name username email'
+            select: 'name last_name username email profile_picture'
         });
 
         if (!post) return null;
@@ -206,6 +303,8 @@ class PostService {
         const petObj = (post.type !== 'Avistamiento' && post.pet) ? await this.fetchPetData(post.pet) : null;
         const petPhoto = post.photo_post_url || (petObj ? petObj.photo_url : 'assets/dogs/perroLogin.jpg');
 
+        const postObj = post.toObject ? post.toObject() : { ...post };
+
         return {
             profilePhoto: ownerData.profile?.photo_profile_url || 'assets/dogs/perroLogin.jpg',
             firstName: ownerData.user?.name || 'Usuario',
@@ -213,7 +312,8 @@ class PostService {
             petPhoto: petPhoto,
             petDetails: petObj,
             numberPhone: ownerData.profile?.number_phone || '',
-            ...post.toObject()
+            ...postObj,
+            sightings: postObj.sightings || []
         };
     }
 
@@ -235,6 +335,22 @@ class PostService {
         if (!userId) {
             const error = new Error('Usuario no autenticado');
             error.statusCode = 401;
+            throw error;
+        }
+
+        // Validar que el creador de la publicación no registre avistamientos sobre su propio post
+        const postAuthorId = post.owner?._id || post.owner || post.user?._id || post.user;
+        if (postAuthorId && String(postAuthorId) === String(userId)) {
+            const error = new Error('No puedes registrar un avistamiento sobre tu propia publicación.');
+            error.statusCode = 400;
+            throw error;
+        }
+
+        // Validar que la publicación no esté marcada como encontrado / resuelto
+        const currentStatus = String(post.status || post.type || '').trim().toLowerCase();
+        if (currentStatus === 'encontrado' || currentStatus === 'found' || currentStatus.startsWith('encon')) {
+            const error = new Error('Este caso ya fue cerrado como encontrado. No se pueden agregar más avistamientos.');
+            error.statusCode = 400;
             throw error;
         }
 
@@ -302,11 +418,22 @@ class PostService {
                     }
                 } catch (uploadError) {
                     console.warn('[PostService] Error al subir foto de avistamiento a Cloudinary:', uploadError.message);
+                } finally {
+                    // Limpieza garantizada del archivo temporal local de avistamiento
+                    try {
+                        await fs.promises.unlink(file.path);
+                    } catch (unlinkErr) {
+                        if (unlinkErr.code !== 'ENOENT') {
+                            console.warn('[PostService] Error al eliminar archivo temporal de avistamiento:', unlinkErr.message);
+                        }
+                    }
                 }
             }
         }
 
         const sighting = {
+            post: post._id,
+            post_id: post._id,
             user: userId,
             location: { lat, lng },
             comment,
@@ -321,7 +448,7 @@ class PostService {
         // Poblar datos del usuario que registró el avistamiento
         await post.populate({
             path: 'sightings.user',
-            select: 'name last_name username email'
+            select: 'name last_name username email profile_picture'
         });
 
         const createdSighting = post.sightings[post.sightings.length - 1];
@@ -339,18 +466,36 @@ class PostService {
         return {
             message: 'Avistamiento registrado exitosamente',
             sighting: createdSighting,
+            sightings: post.sightings,
             post
         };
     }
 
     async updatePost(id, updates) {
-        const allowedUpdates = ['type', 'body', 'location', 'amount_reactions', 'amount_comments', 'reward', 'address'];
+        const allowedUpdates = ['type', 'status', 'body', 'location', 'amount_reactions', 'amount_comments', 'reward', 'address'];
         const isValidOperation = Object.keys(updates).every(update => allowedUpdates.includes(update));
 
         if (!isValidOperation) {
             const error = new Error('Invalid updates!');
             error.statusCode = 400;
             throw error;
+        }
+
+        if (updates.type || updates.status) {
+            const raw = String(updates.type || updates.status || '').trim().toLowerCase();
+            if (raw.startsWith('avis')) {
+                updates.type = 'Avistamiento';
+                updates.status = 'avistamiento';
+            } else if (raw.startsWith('perd')) {
+                updates.type = 'Perdida';
+                updates.status = 'perdido';
+            } else if (raw.startsWith('encon')) {
+                updates.type = 'Encontrado';
+                updates.status = 'encontrado';
+            } else if (raw.startsWith('adop')) {
+                updates.type = 'Adopcion';
+                updates.status = 'adopcion';
+            }
         }
 
         return await Post.findByIdAndUpdate(id, updates, { new: true, runValidators: true });
