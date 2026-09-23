@@ -3,13 +3,13 @@ version: '3.8'
 services:
   app:
     build: .
-    container_name: petbook-server
+    container_name: geopet-server
     ports:
       - "3010:3010"
     environment:
       - NODE_ENV=${NODE_ENV:-development}
       - PORT=${PORT:-3010}
-      - MONGO_URI=${MONGO_URI:-mongodb://mongo:27017/bd_petbook}
+      - MONGO_URI=${MONGO_URI:-mongodb://mongo:27017/bd_geopet}
       - JWT_SECRET=${JWT_SECRET}
       - CLOUDINARY_CLOUD_NAME=${CLOUDINARY_CLOUD_NAME}
       - CLOUDINARY_API_KEY=${CLOUDINARY_API_KEY}
@@ -22,7 +22,7 @@ services:
 
   mongo:
     image: mongo:latest
-    container_name: petbook-mongodb
+    container_name: geopet-mongodb
     ports:
       - "27017:27017"
     volumes:

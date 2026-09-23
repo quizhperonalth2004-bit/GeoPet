@@ -13,7 +13,7 @@ const startServer = async () => {
         // Iniciar el servidor HTTP en el puerto único
         const server = app.listen(PORT, () => {
             console.log(`=================================================`);
-            console.log(`  PetBook Monolito Modular corriendo exitosamente`);
+            console.log(`  GeoPet Monolito Modular corriendo exitosamente`);
             console.log(`  Puerto: http://localhost:${PORT}`);
             console.log(`  Health: http://localhost:${PORT}/health`);
             console.log(`  API v1: http://localhost:${PORT}/api/v1`);

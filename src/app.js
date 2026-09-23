@@ -65,7 +65,7 @@ app.get('/health', (req, res) => {
     res.status(200).json({
         status: 'OK',
         timestamp: new Date().toISOString(),
-        service: 'pet-book-server (Modular Monolith)'
+        service: 'geopet-server (Modular Monolith)'
     });
 });
 

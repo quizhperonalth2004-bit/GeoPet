@@ -93,7 +93,7 @@ describe('Security & Non-Functional Tests (QA Suite)', () => {
         it('Debe rechazar subida de archivos con extensiones peligrosas (.exe, .html, .js)', async () => {
             const adminToken = jwt.sign(
                 { userId: 'admin1', email: 'admin@test.com', rol: 'admin' },
-                process.env.JWT_SECRET || 'fabricio29'
+                process.env.JWT_SECRET || 'geopet_jwt_test_secret'
             );
 
             const res = await request(app)

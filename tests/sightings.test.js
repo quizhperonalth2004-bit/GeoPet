@@ -7,7 +7,7 @@ const Post = require('../src/modules/posts/post.model');
 describe('Sightings / Geolocalización & Módulos desconectados', () => {
     const validUserId = new mongoose.Types.ObjectId().toString();
     const validPostId = new mongoose.Types.ObjectId().toString();
-    const jwtSecret = process.env.JWT_SECRET || 'fabricio29';
+    const jwtSecret = process.env.JWT_SECRET || 'geopet_jwt_test_secret';
     const token = jwt.sign(
         { userId: validUserId, email: 'test@example.com', rol: 'usuario' },
         jwtSecret,

@@ -5,7 +5,7 @@ const User = require('../src/modules/users/models/user.model');
 const Profile = require('../src/modules/users/models/profile.model');
 
 describe('Users & Profiles Module Tests', () => {
-    const jwtSecret = process.env.JWT_SECRET || 'fabricio29';
+    const jwtSecret = process.env.JWT_SECRET || 'geopet_jwt_test_secret';
     const adminToken = jwt.sign({ userId: 'admin1', email: 'admin@geopet.com', rol: 'admin' }, jwtSecret);
     const userToken = jwt.sign({ userId: 'user1', email: 'user@geopet.com', rol: 'usuario' }, jwtSecret);
 

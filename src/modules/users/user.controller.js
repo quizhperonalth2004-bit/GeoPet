@@ -47,7 +47,7 @@ const userController = {
             res.status(201).json({ message: 'Usuario creado correctamente', user: newUser });
         } catch (error) {
             if (error.code === 11000 && error.keyPattern && error.keyPattern.ci) {
-                res.status(400).json({ message: 'Ya existe un usuario en PetBook con ese número de identificación' });
+                res.status(400).json({ message: 'Ya existe un usuario en GeoPet con ese número de identificación' });
             } else if (error.code === 11000 && error.keyPattern && error.keyPattern.email) {
                 res.status(400).json({ message: 'Debes usar otro correo, el que has ingresado ya está en uso' });
             } else if (error.code === 11000 && error.keyPattern && error.keyPattern.username) {

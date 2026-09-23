@@ -6,7 +6,7 @@ describe('Monolito Modular - Health & Routing Tests', () => {
         const response = await request(app).get('/health');
         expect(response.status).toBe(200);
         expect(response.body.status).toBe('OK');
-        expect(response.body.service).toBe('pet-book-server (Modular Monolith)');
+        expect(response.body.service).toBe('geopet-server (Modular Monolith)');
     });
 
     it('GET a ruta inexistente debe retornar 404 con mensaje estructurado', async () => {

@@ -1,7 +1,7 @@
 {
-  "name": "pet-book-server",
+  "name": "geopet-server",
   "version": "1.0.0",
-  "description": "Backend Monolítico Modular para PetBook",
+  "description": "Backend Monolítico Modular y API REST para GeoPet",
   "main": "src/server.js",
   "scripts": {
     "start": "node src/server.js",
@@ -26,7 +26,9 @@
     "express",
     "mongodb",
     "modular-monolith",
-    "petbook"
+    "geopet",
+    "lost-pets",
+    "geopet-api"
   ],
   "author": "",
   "license": "ISC",
