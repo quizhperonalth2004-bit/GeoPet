@@ -1,6 +1,6 @@
-﻿const User = require('../users/models/user.model');
+const User = require('../users/models/user.model');
 const Pet = require('../pets/models/pet.model');
-const Post = require('../posts/models/post.model');
+const Post = require('../posts/post.model');
 
 class AdminService {
     async getGlobalMetrics() {

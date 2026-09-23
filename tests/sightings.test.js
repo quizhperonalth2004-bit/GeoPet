@@ -2,7 +2,7 @@ const request = require('supertest');
 const mongoose = require('mongoose');
 const jwt = require('jsonwebtoken');
 const app = require('../src/app');
-const Post = require('../src/modules/posts/models/post.model');
+const Post = require('../src/modules/posts/post.model');
 
 describe('Sightings / Geolocalización & Módulos desconectados', () => {
     const validUserId = new mongoose.Types.ObjectId().toString();
@@ -19,24 +19,25 @@ describe('Sightings / Geolocalización & Módulos desconectados', () => {
     });
 
     describe('1. Verificación de módulos desconectados y rutas activas', () => {
-        it('No debe tener registrados en mongoose los modelos eliminados (Event, Forum)', () => {
+        it('No debe tener registrados en mongoose los modelos eliminados (Event, Forum, Reaction)', () => {
             const registeredModels = Object.keys(mongoose.models);
             expect(registeredModels).not.toContain('Event');
             expect(registeredModels).not.toContain('Forum');
+            expect(registeredModels).not.toContain('Reaction');
         });
 
-        it('Las rutas de /events y /forums deben responder 404', async () => {
+        it('Las rutas de /events, /forums y /reactions deben responder 404', async () => {
             const eventRes = await request(app).get('/api/v1/events/all');
             expect(eventRes.status).toBe(404);
 
             const forumRes = await request(app).get('/api/v1/forums/all');
             expect(forumRes.status).toBe(404);
+
+            const reactionRes = await request(app).get('/api/v1/reactions/check');
+            expect(reactionRes.status).toBe(404);
         });
 
-        it('Las rutas de /reactions y /comments deben estar montadas correctamente (no retornan 404)', async () => {
-            const reactionRes = await request(app).get('/api/v1/reactions/check');
-            expect(reactionRes.status).not.toBe(404);
-
+        it('Las rutas de /comments deben estar montadas correctamente (no retornan 404)', async () => {
             const commentRes = await request(app).post('/api/v1/comments/post/new');
             expect(commentRes.status).not.toBe(404);
         });

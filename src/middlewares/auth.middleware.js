@@ -98,7 +98,7 @@ const authMiddleware = {
 
         // Si no es admin, verificar si es el dueño de la publicación
         try {
-            const Post = require('../modules/posts/models/post.model');
+            const Post = require('../modules/posts/post.model');
             const post = await Post.findById(req.params.id);
             if (!post) {
                 return res.status(404).json({ error: 'Publicación no encontrada.' });

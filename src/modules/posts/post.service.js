@@ -1,12 +1,12 @@
 const mongoose = require('mongoose');
 const fs = require('fs');
-const Post = require('../models/post.model');
-const User = require('../../users/models/user.model');
-const Profile = require('../../users/models/profile.model');
-const Pet = require('../../pets/models/pet.model');
-const cloudinary = require('../../../config/cloudinary');
-const notificationService = require('./notification.service');
-const eventBus = require('../../../shared/eventBus');
+const Post = require('./post.model');
+const User = require('../users/models/user.model');
+const Profile = require('../users/models/profile.model');
+const Pet = require('../pets/models/pet.model');
+const cloudinary = require('../../config/cloudinary');
+const notificationService = require('../notifications/notification.service');
+const eventBus = require('../../shared/eventBus');
 
 class PostService {
     async fetchOwnerData(ownerId) {
@@ -485,7 +485,7 @@ class PostService {
     }
 
     async updatePost(id, updates) {
-        const allowedUpdates = ['type', 'status', 'body', 'location', 'amount_reactions', 'amount_comments', 'reward', 'address'];
+        const allowedUpdates = ['type', 'status', 'body', 'location', 'amount_comments', 'reward', 'address'];
         const isValidOperation = Object.keys(updates).every(update => allowedUpdates.includes(update));
 
         if (!isValidOperation) {

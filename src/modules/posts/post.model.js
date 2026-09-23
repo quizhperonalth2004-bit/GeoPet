@@ -28,10 +28,6 @@ const postSchema = new mongoose.Schema({
         type: String,
         required: false
     },
-    amount_reactions: {
-        type: Number,
-        default: 0
-    },
     amount_comments: {
         type: Number,
         default: 0

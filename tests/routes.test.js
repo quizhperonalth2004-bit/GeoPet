@@ -16,7 +16,7 @@ describe('Monolito Modular - Health & Routing Tests', () => {
     });
 
     it('GET /api/v1/posts debe retornar 200 con array de publicaciones enriquecidas', async () => {
-        const postService = require('../src/modules/posts/services/post.service');
+        const postService = require('../src/modules/posts/post.service');
         jest.spyOn(postService, 'getPost').mockResolvedValue([
             {
                 _id: 'post1',
@@ -38,7 +38,7 @@ describe('Monolito Modular - Health & Routing Tests', () => {
     });
 
     it('GET /api/v1/posts con filtro ?type=avistamiento debe pasar el filtro al servicio', async () => {
-        const postService = require('../src/modules/posts/services/post.service');
+        const postService = require('../src/modules/posts/post.service');
         const spy = jest.spyOn(postService, 'getPost').mockResolvedValue([
             {
                 _id: 'post2',

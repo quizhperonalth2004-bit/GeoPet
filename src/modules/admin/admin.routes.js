@@ -1,9 +1,9 @@
-﻿const express = require('express');
+const express = require('express');
 const router = express.Router();
 const authMiddleware = require('../../middlewares/auth.middleware');
 const adminController = require('./admin.controller');
 const userController = require('../users/user.controller');
-const postController = require('../posts/controllers/post.controller');
+const postController = require('../posts/post.controller');
 
 // Todas las rutas de administración están estrictamente protegidas con verifyToken y verifyAdmin
 router.use(authMiddleware.verifyToken, authMiddleware.verifyAdmin);

@@ -2,7 +2,7 @@ const express = require('express');
 const router = express.Router();
 const upload = require('../../middlewares/upload.middleware');
 const authMiddleware = require('../../middlewares/auth.middleware');
-const postController = require('./controllers/post.controller');
+const postController = require('./post.controller');
 
 // Ruta para crear una nueva publicación
 router.post('/new', upload, postController.createPost);

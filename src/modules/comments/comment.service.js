@@ -1,30 +1,14 @@
-const Comment = require('../models/comment.model');
-const Post = require('../models/post.model');
-const Profile = require('../../users/models/profile.model');
-const User = require('../../users/models/user.model');
-const Notification = require('../models/notification.model');
+const Comment = require('./comment.model');
+const Post = require('../posts/post.model');
+const Profile = require('../users/models/profile.model');
+const User = require('../users/models/user.model');
+const Notification = require('../notifications/notification.model');
 
 class CommentService {
     async createComment({ content, forumId, userId }) {
-        const Forum = require('../models/forum.model');
-        const forum = await Forum.findOne({ _id: forumId, status: 'active' });
-        if (!forum) {
-            const error = new Error('Forum not found or inactive');
-            error.statusCode = 404;
-            throw error;
-        }
-
-        const newComment = new Comment({
-            content,
-            createdBy: userId,
-            forum: forumId
-        });
-
-        const savedComment = await newComment.save();
-        forum.answers.push({ commentId: savedComment._id });
-        await forum.save();
-
-        return savedComment;
+        const error = new Error('El módulo de foros ha sido retirado.');
+        error.statusCode = 410;
+        throw error;
     }
 
     async createCommentPost({ content, postId, userId }) {

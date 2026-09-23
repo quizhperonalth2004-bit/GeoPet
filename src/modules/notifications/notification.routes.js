@@ -1,6 +1,6 @@
 const express = require('express');
 const router = express.Router();
-const notificationController = require('./controllers/notification.controller');
+const notificationController = require('./notification.controller');
 
 router.post('/new', notificationController.createNotifications);
 router.post('/profile/notifications', notificationController.getNotificationByProfileId);

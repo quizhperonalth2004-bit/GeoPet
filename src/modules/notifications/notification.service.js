@@ -1,6 +1,6 @@
 const mongoose = require('mongoose');
-const Notification = require('../models/notification.model');
-const Profile = require('../../users/models/profile.model');
+const Notification = require('./notification.model');
+const Profile = require('../users/models/profile.model');
 
 class NotificationService {
     async createNotifications(notifications) {
