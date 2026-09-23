@@ -46,6 +46,16 @@ app.use(limiter);
 const mediaPath = path.join(__dirname, '../media');
 app.use('/media', express.static(mediaPath));
 
+// Ruta raíz informativa
+app.get('/', (req, res) => {
+    res.status(200).json({
+        message: 'Bienvenido a la API de GeoPet',
+        status: 'Online',
+        version: '1.0.0',
+        healthCheck: '/health'
+    });
+});
+
 // Health check endpoint
 app.get('/health', (req, res) => {
     res.status(200).json({
