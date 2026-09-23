@@ -17,39 +17,17 @@ app.use(helmet({
     crossOriginResourcePolicy: { policy: 'cross-origin' }
 }));
 
-// Configuración de CORS segura para clientes móviles (Capacitor) y desarrollo web
-const allowedOrigins = [
-    'http://localhost:4200',    // Angular CLI Dev
-    'http://localhost:8100',    // Ionic CLI Dev
-    'http://localhost:3010',    // Backend local
-    'capacitor://localhost',    // Capacitor iOS / Android
-    'http://localhost'          // Capacitor Android WebView fallback
-];
-
-if (process.env.ALLOWED_ORIGINS) {
-    process.env.ALLOWED_ORIGINS.split(',').forEach(origin => {
-        const trimmed = origin.trim();
-        if (trimmed && !allowedOrigins.includes(trimmed)) {
-            allowedOrigins.push(trimmed);
-        }
-    });
-}
-
-const corsOptions = {
-    origin: (origin, callback) => {
-        // Permitir solicitudes sin header Origin (apps móviles nativas, Supertest, Postman, curl)
-        if (!origin || allowedOrigins.includes(origin)) {
-            callback(null, true);
-        } else {
-            callback(new Error(`Bloqueado por política de CORS: ${origin}`));
-        }
-    },
+// Configuración permisiva de CORS para clientes móviles (Capacitor), herramientas y navegadores
+app.use(cors({
+    origin: true, // Refleja dinámicamente el origen de la petición (permite capacitor://, http://localhost, https://localhost, etc.)
     credentials: true,
     methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
-    allowedHeaders: ['Content-Type', 'Authorization']
-};
+    allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With', 'Accept']
+}));
 
-app.use(cors(corsOptions));
+// Responder preflight OPTIONS de forma inmediata
+app.options('*', cors());
+
 app.use(compression({
     threshold: 1024 // Solo comprimir respuestas mayores a 1 KB
 }));
