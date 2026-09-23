@@ -74,6 +74,7 @@ class AuthService {
         }
 
         const userObj = user.toObject ? user.toObject() : { ...user };
+        delete userObj.password;
         userObj.profile_picture = photo;
         userObj.photo = photo;
         userObj.photo_profile_url = photo;
@@ -446,6 +447,7 @@ class AuthService {
         const resolvedPhoto = profileDoc?.photo_profile_url || profileDoc?.profile_picture || picture || user.profile_picture || 'assets/default-avatar.png';
 
         const userObj = user.toObject ? user.toObject() : { ...user };
+        delete userObj.password;
         userObj.photo = resolvedPhoto;
         userObj.profile_picture = resolvedPhoto;
         userObj.photo_profile_url = resolvedPhoto;

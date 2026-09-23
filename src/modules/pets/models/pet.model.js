@@ -60,6 +60,11 @@ const petSchema = new mongoose.Schema({
     }
 });
 
+// Índices para búsquedas frecuentes y optimización de rendimiento
+petSchema.index({ owner: 1, status: 1 });
+petSchema.index({ status: 1 });
+
 const Pet = mongoose.model('Pet', petSchema);
 
 module.exports = Pet;
+

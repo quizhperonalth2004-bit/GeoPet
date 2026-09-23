@@ -107,7 +107,9 @@ postSchema.index({ location: '2dsphere' });
 
 // Índices compuestos para ordenación y filtrado rápido
 postSchema.index({ type: 1, createdAt: -1 });
+postSchema.index({ status: 1, createdAt: -1 });
 postSchema.index({ owner: 1, createdAt: -1 });
+postSchema.index({ createdAt: -1 });
 
 const Post = mongoose.model('Post', postSchema);
 

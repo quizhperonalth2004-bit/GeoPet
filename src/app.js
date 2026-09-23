@@ -7,6 +7,7 @@ const path = require('path');
 const compression = require('compression');
 const helmet = require('helmet');
 const limiter = require('./middlewares/rateLimit.middleware');
+const mongoSanitize = require('./middlewares/mongoSanitize.middleware');
 const { notFoundHandler, errorHandler } = require('./middlewares/error.middleware');
 const apiRoutes = require('./routes');
 
@@ -33,6 +34,9 @@ app.use(compression({
 }));
 app.use(express.json({ limit: '10mb' }));
 app.use(express.urlencoded({ extended: true, limit: '10mb' }));
+
+// Sanitización de entradas contra inyecciones NoSQL en MongoDB
+app.use(mongoSanitize);
 
 // Logging en desarrollo
 if (process.env.NODE_ENV !== 'test') {

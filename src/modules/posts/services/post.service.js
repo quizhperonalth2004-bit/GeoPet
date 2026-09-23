@@ -225,7 +225,11 @@ class PostService {
             }
         }
 
-        const posts = await Post.find(filter)
+        const limit = Math.min(Math.max(parseInt(queryFilter.limit, 10) || 50, 1), 100);
+        const page = Math.max(parseInt(queryFilter.page, 10) || 1, 1);
+        const skip = (page - 1) * limit;
+
+        const query = Post.find(filter)
             .populate({
                 path: 'owner',
                 select: 'name last_name username email profile_picture'
@@ -239,6 +243,15 @@ class PostService {
                 select: 'name last_name username email profile_picture'
             })
             .sort({ createdAt: -1 });
+
+        if (typeof query.skip === 'function') {
+            query.skip(skip);
+        }
+        if (typeof query.limit === 'function') {
+            query.limit(limit);
+        }
+
+        const posts = await query;
 
         if (!posts) return [];
 
