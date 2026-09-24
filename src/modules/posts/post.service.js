@@ -7,8 +7,22 @@ const Pet = require('../pets/models/pet.model');
 const cloudinary = require('../../config/cloudinary');
 const notificationService = require('../notifications/notification.service');
 const eventBus = require('../../shared/eventBus');
+const { BadRequestError, NotFoundError, UnauthorizedError } = require('../../shared/errors');
 
 class PostService {
+    /**
+     * @param {Object} [dependencies] Inyección de dependencias para modelos y servicios externos
+     */
+    constructor(dependencies = {}) {
+        this.postModel = dependencies.postModel || Post;
+        this.userModel = dependencies.userModel || User;
+        this.profileModel = dependencies.profileModel || Profile;
+        this.petModel = dependencies.petModel || Pet;
+        this.cloudinaryUploader = dependencies.cloudinaryUploader || cloudinary.uploader;
+        this.notificationService = dependencies.notificationService || notificationService;
+        this.eventBus = dependencies.eventBus || eventBus;
+    }
+
     async fetchOwnerData(ownerId) {
         if (!ownerId || !mongoose.Types.ObjectId.isValid(ownerId)) {
             return {
@@ -18,12 +32,12 @@ class PostService {
         }
 
         try {
-            const user = await User.findById(ownerId);
-            const profile = await Profile.findOne({ user: ownerId });
+            const user = await this.userModel.findById(ownerId);
+            const profile = await this.profileModel.findOne({ user: ownerId });
 
             return {
-                profile: profile ? profile.toObject() : { photo_profile_url: 'assets/dogs/perroLogin.jpg', number_phone: '' },
-                user: user ? user.toObject() : { name: 'Comunidad', last_name: 'Patas Unidas' }
+                profile: profile ? (profile.toObject ? profile.toObject() : profile) : { photo_profile_url: 'assets/dogs/perroLogin.jpg', number_phone: '' },
+                user: user ? (user.toObject ? user.toObject() : user) : { name: 'Comunidad', last_name: 'Patas Unidas' }
             };
         } catch (error) {
             return {
@@ -36,8 +50,8 @@ class PostService {
     async fetchPetData(petId) {
         if (!petId || !mongoose.Types.ObjectId.isValid(petId)) return null;
         try {
-            const pet = await Pet.findById(petId);
-            return pet ? pet.toObject() : null;
+            const pet = await this.petModel.findById(petId);
+            return pet ? (pet.toObject ? pet.toObject() : pet) : null;
         } catch (error) {
             return null;
         }
@@ -66,9 +80,7 @@ class PostService {
         switch (type) {
             case 'Perdida':
                 if (!coordinates) {
-                    const error = new Error('Las coordenadas son requeridas para este tipo de publicación');
-                    error.statusCode = 400;
-                    throw error;
+                    throw new BadRequestError('Las coordenadas son requeridas para este tipo de publicación');
                 }
                 break;
             case 'Avistamiento':
@@ -81,9 +93,7 @@ class PostService {
                 coordinates = [-79.20786376590335, -3.995008843716655];
                 break;
             default:
-                const error = new Error('Tipo de publicación no válido');
-                error.statusCode = 400;
-                throw error;
+                throw new BadRequestError('Tipo de publicación no válido');
         }
 
         let parsedCoordinates = [];
@@ -91,9 +101,7 @@ class PostService {
             try {
                 parsedCoordinates = JSON.parse(coordinates);
             } catch (error) {
-                const err = new Error('Las coordenadas tienen un formato incorrecto');
-                err.statusCode = 400;
-                throw err;
+                throw new BadRequestError('Las coordenadas tienen un formato incorrecto');
             }
         } else if (Array.isArray(coordinates)) {
             parsedCoordinates = coordinates;
@@ -114,7 +122,7 @@ class PostService {
         if (files && files.photo_post_url && files.photo_post_url.length > 0) {
             const filePath = files.photo_post_url[0].path;
             try {
-                const result = await cloudinary.uploader.upload(filePath, {
+                const result = await this.cloudinaryUploader.upload(filePath, {
                     folder: 'posts',
                     transformation: [{ width: 300, height: 300, crop: 'fill' }]
                 });
@@ -139,7 +147,7 @@ class PostService {
             photo_url = data.photo_post_url;
         }
 
-        const newPost = new Post({
+        const newPost = new this.postModel({
             type,
             status: status || (type === 'Avistamiento' ? 'avistamiento' : 'perdido'),
             body,
@@ -154,14 +162,14 @@ class PostService {
         const savedPost = await newPost.save();
 
         // Enviar notificaciones a otros perfiles de forma asíncrona
-        notificationService.broadcastNotification({
+        this.notificationService.broadcastNotification({
             type: 'post',
             emitterId: owner,
             itemId: savedPost._id,
             itemField: 'post_id'
         }).catch(err => console.warn('[PostService] Error enviando broadcast de post:', err.message));
 
-        eventBus.emit('post:created', { post: savedPost, owner });
+        this.eventBus.emit('post:created', { post: savedPost, owner });
 
         return { post: savedPost, pet };
     }
@@ -176,18 +184,18 @@ class PostService {
             const ownerIds = [ownerId];
 
             // Buscar si existe un perfil para este owner (en caso de que owner sea User ID)
-            const profileByUser = await Profile.findOne({ user: ownerId });
+            const profileByUser = await this.profileModel.findOne({ user: ownerId });
             if (profileByUser) {
                 ownerIds.push(profileByUser._id);
             }
 
             // Buscar si existe un usuario para este owner (en caso de que owner sea Profile ID)
-            const profileAsOwner = await Profile.findById(ownerId);
+            const profileAsOwner = await this.profileModel.findById(ownerId);
             if (profileAsOwner && profileAsOwner.user) {
                 ownerIds.push(profileAsOwner.user);
             }
 
-            const posts = await Post.find({ owner: { $in: ownerIds } }).sort({ createdAt: -1 });
+            const posts = await this.postModel.find({ owner: { $in: ownerIds } }).sort({ createdAt: -1 });
             if (!posts || posts.length === 0) return [];
 
             return await Promise.all(
@@ -229,7 +237,7 @@ class PostService {
         const page = Math.max(parseInt(queryFilter.page, 10) || 1, 1);
         const skip = (page - 1) * limit;
 
-        const query = Post.find(filter)
+        const query = this.postModel.find(filter)
             .populate({
                 path: 'owner',
                 select: 'name last_name username email profile_picture'
@@ -258,113 +266,102 @@ class PostService {
         return posts.map((post) => {
             const postObj = post.toObject ? post.toObject() : { ...post };
 
-            const ownerObj = post.owner && typeof post.owner === 'object' && post.owner._id
-                ? (post.owner.toObject ? post.owner.toObject() : post.owner)
-                : null;
+            const ownerObj = postObj.owner && typeof postObj.owner === 'object' ? postObj.owner : null;
+            const petObj = postObj.pet && typeof postObj.pet === 'object' ? postObj.pet : null;
 
-            const petObj = (post.type !== 'Avistamiento' && post.pet && typeof post.pet === 'object' && post.pet._id)
-                ? (post.pet.toObject ? post.pet.toObject() : post.pet)
-                : null;
-
-            const petPhoto = post.photo_post_url || (petObj ? petObj.photo_url : 'assets/dogs/perroLogin.jpg');
+            const firstName = ownerObj?.name || 'Comunidad';
+            const lastName = ownerObj?.last_name || 'GeoPet';
             const profilePhoto = ownerObj?.profile_picture || 'assets/default-avatar.png';
-            const firstName = ownerObj?.name || 'Usuario';
-            const lastName = ownerObj?.last_name || '';
 
-            const userDetails = {
-                _id: ownerObj?._id,
-                name: `${firstName} ${lastName}`.trim() || ownerObj?.username || 'Usuario',
-                email: ownerObj?.email || '',
-                photo: profilePhoto,
-                profile_picture: profilePhoto,
-                photo_profile_url: profilePhoto
-            };
+            const petPhoto = postObj.photo_post_url || petObj?.photo_url || 'assets/dogs/perroLogin.jpg';
 
             return {
                 ...postObj,
-                profilePhoto,
                 firstName,
                 lastName,
+                profilePhoto,
                 petPhoto,
-                petDetails: petObj,
-                numberPhone: ownerObj?.number_phone || '',
-                userDetails,
-                sightings: postObj.sightings || []
+                userDetails: {
+                    name: `${firstName} ${lastName}`.trim(),
+                    photo: profilePhoto,
+                    phone: ''
+                },
+                petDetails: petObj ? {
+                    name: petObj.name,
+                    breed: petObj.breed,
+                    sex: petObj.sex,
+                    age: petObj.age,
+                    photo_url: petObj.photo_url
+                } : null
             };
         });
     }
 
     async getPostsAll() {
-        return await Post.find({}).sort({ createdAt: -1 });
+        return await this.postModel.find();
     }
 
-    async getPostsAllByUser(ownerId) {
-        return await Post.find({ owner: ownerId }).sort({ createdAt: -1 });
+    async getPostsAllByUser(userId) {
+        return await this.postModel.find({ owner: userId });
     }
 
-    async getPostById(postId) {
-        if (!postId || !mongoose.Types.ObjectId.isValid(postId)) return null;
-
-        const post = await Post.findById(postId).populate({
+    async getPostById(id) {
+        const post = await this.postModel.findById(id).populate({
             path: 'sightings.user',
             select: 'name last_name username email profile_picture'
         });
+        if (!post) {
+            return null;
+        }
 
-        if (!post) return null;
-
-        const ownerData = await this.fetchOwnerData(post.owner);
-        const petObj = (post.type !== 'Avistamiento' && post.pet) ? await this.fetchPetData(post.pet) : null;
-        const petPhoto = post.photo_post_url || (petObj ? petObj.photo_url : 'assets/dogs/perroLogin.jpg');
+        const [ownerData, petData] = await Promise.all([
+            this.fetchOwnerData(post.owner),
+            this.fetchPetData(post.pet)
+        ]);
 
         const postObj = post.toObject ? post.toObject() : { ...post };
 
         return {
-            profilePhoto: ownerData.profile?.photo_profile_url || 'assets/dogs/perroLogin.jpg',
-            firstName: ownerData.user?.name || 'Usuario',
-            lastName: ownerData.user?.last_name || '',
-            petPhoto: petPhoto,
-            petDetails: petObj,
-            numberPhone: ownerData.profile?.number_phone || '',
             ...postObj,
-            sightings: postObj.sightings || []
+            firstName: ownerData.user.name,
+            lastName: ownerData.user.last_name,
+            profilePhoto: ownerData.profile.photo_profile_url || 'assets/dogs/perroLogin.jpg',
+            phoneNumber: ownerData.profile.number_phone,
+            petPhoto: post.photo_post_url || (petData ? petData.photo_url : 'assets/dogs/perroLogin.jpg'),
+            userDetails: {
+                name: `${ownerData.user.name} ${ownerData.user.last_name}`,
+                photo: ownerData.profile.photo_profile_url || 'assets/dogs/perroLogin.jpg',
+                phone: ownerData.profile.number_phone
+            },
+            petDetails: petData
         };
     }
 
     async addSighting(postId, data, user, files) {
         if (!postId || !mongoose.Types.ObjectId.isValid(postId)) {
-            const error = new Error('ID de publicación no válido');
-            error.statusCode = 400;
-            throw error;
+            throw new BadRequestError('ID de publicación no válido');
         }
 
-        const post = await Post.findById(postId);
+        const post = await this.postModel.findById(postId);
         if (!post) {
-            const error = new Error('Publicación no encontrada');
-            error.statusCode = 404;
-            throw error;
+            throw new NotFoundError('Publicación no encontrada');
         }
 
         const userId = user?.userId || user?.id || user?._id;
         if (!userId) {
-            const error = new Error('Usuario no autenticado');
-            error.statusCode = 401;
-            throw error;
+            throw new UnauthorizedError('Usuario no autenticado');
         }
 
         // Validar que el creador de la publicación no registre avistamientos sobre su propio post
         const postAuthorId = post.owner?._id || post.owner || post.user?._id || post.user;
         if (postAuthorId && String(postAuthorId) === String(userId)) {
-            const error = new Error('No puedes registrar un avistamiento sobre tu propia publicación.');
-            error.statusCode = 400;
-            throw error;
+            throw new BadRequestError('No puedes registrar un avistamiento sobre tu propia publicación.');
         }
 
         // Validar que la publicación no esté marcada como encontrado / resuelto
         const currentStatus = String(post.status || post.type || '').trim().toLowerCase();
         if (currentStatus === 'encontrado' || currentStatus === 'found' || currentStatus.startsWith('encon')) {
-            const error = new Error('Este caso ya fue cerrado como encontrado. No se pueden agregar más avistamientos.');
-            error.statusCode = 400;
-            throw error;
+            throw new BadRequestError('Este caso ya fue cerrado como encontrado. No se pueden agregar más avistamientos.');
         }
 
         // Extraer coordenadas de latitud y longitud
@@ -391,24 +388,18 @@ class PostService {
         if (lng === undefined && data.longitude !== undefined) lng = data.longitude;
 
         if (lat === undefined || lng === undefined || lat === null || lng === null || lat === '' || lng === '') {
-            const error = new Error('Las coordenadas de ubicación (lat, lng) son obligatorias');
-            error.statusCode = 400;
-            throw error;
+            throw new BadRequestError('Las coordenadas de ubicación (lat, lng) son obligatorias');
         }
 
         lat = Number(lat);
         lng = Number(lng);
 
         if (isNaN(lat) || isNaN(lng)) {
-            const error = new Error('Las coordenadas (lat, lng) deben ser números válidos');
-            error.statusCode = 400;
-            throw error;
+            throw new BadRequestError('Las coordenadas (lat, lng) deben ser números válidos');
         }
 
         if (lat < -90 || lat > 90 || lng < -180 || lng > 180) {
-            const error = new Error('Las coordenadas están fuera del rango válido (lat: -90 a 90, lng: -180 a 180)');
-            error.statusCode = 400;
-            throw error;
+            throw new BadRequestError('Las coordenadas están fuera del rango válido (lat: -90 a 90, lng: -180 a 180)');
         }
 
         const comment = typeof data.comment === 'string' ? data.comment.trim() : '';
@@ -422,7 +413,7 @@ class PostService {
                          (files.photo_url && files.photo_url[0]);
             if (file) {
                 try {
-                    const result = await cloudinary.uploader.upload(file.path, {
+                    const result = await this.cloudinaryUploader.upload(file.path, {
                         folder: 'posts/sightings',
                         transformation: [{ width: 600, height: 600, crop: 'limit' }]
                     });
@@ -468,7 +459,7 @@ class PostService {
 
         // Notificar al dueño de la publicación si aplica (fuera del entorno de pruebas)
         if (process.env.NODE_ENV !== 'test' && post.owner && String(post.owner) !== String(userId)) {
-            notificationService.createNotifications([{
+            this.notificationService.createNotifications([{
                 emiter_id: userId,
                 receiver_id: post.owner,
                 type: 'post',
@@ -489,9 +480,7 @@ class PostService {
         const isValidOperation = Object.keys(updates).every(update => allowedUpdates.includes(update));
 
         if (!isValidOperation) {
-            const error = new Error('Invalid updates!');
-            error.statusCode = 400;
-            throw error;
+            throw new BadRequestError('Invalid updates!');
         }
 
         if (updates.type || updates.status) {
@@ -511,12 +500,14 @@ class PostService {
             }
         }
 
-        return await Post.findByIdAndUpdate(id, updates, { new: true, runValidators: true });
+        return await this.postModel.findByIdAndUpdate(id, updates, { new: true, runValidators: true });
     }
 
     async deletePost(id) {
-        return await Post.findByIdAndDelete(id);
+        return await this.postModel.findByIdAndDelete(id);
     }
 }
 
-module.exports = new PostService();
+const postService = new PostService();
+module.exports = postService;
+module.exports.PostService = PostService;

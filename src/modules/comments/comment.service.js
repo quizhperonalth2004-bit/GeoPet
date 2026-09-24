@@ -3,23 +3,31 @@ const Post = require('../posts/post.model');
 const Profile = require('../users/models/profile.model');
 const User = require('../users/models/user.model');
 const Notification = require('../notifications/notification.model');
+const { AppError, NotFoundError } = require('../../shared/errors');
 
 class CommentService {
+    /**
+     * @param {Object} [dependencies] Inyección de dependencias para modelos y servicios
+     */
+    constructor(dependencies = {}) {
+        this.commentModel = dependencies.commentModel || Comment;
+        this.postModel = dependencies.postModel || Post;
+        this.profileModel = dependencies.profileModel || Profile;
+        this.userModel = dependencies.userModel || User;
+        this.notificationModel = dependencies.notificationModel || Notification;
+    }
+
     async createComment({ content, forumId, userId }) {
-        const error = new Error('El módulo de foros ha sido retirado.');
-        error.statusCode = 410;
-        throw error;
+        throw new AppError('El módulo de foros ha sido retirado.', 410);
     }
 
     async createCommentPost({ content, postId, userId }) {
-        const post = await Post.findById(postId);
+        const post = await this.postModel.findById(postId);
         if (!post) {
-            const error = new Error('No se encuentra la publicación');
-            error.statusCode = 404;
-            throw error;
+            throw new NotFoundError('No se encuentra la publicación');
         }
 
-        const newComment = new Comment({
+        const newComment = new this.commentModel({
             content,
             createdBy: userId,
             post: postId
@@ -30,7 +38,7 @@ class CommentService {
         // Enviar notificación al dueño del post si no es quien comenta
         if (String(post.owner) !== String(userId)) {
             try {
-                const notif = new Notification({
+                const notif = new this.notificationModel({
                     type: 'comment',
                     emiter_id: userId,
                     receiver_id: post.owner,
@@ -39,7 +47,7 @@ class CommentService {
                 });
                 const savedNotif = await notif.save();
 
-                const ownerProfile = await Profile.findOne({ user: post.owner });
+                const ownerProfile = await this.profileModel.findOne({ user: post.owner });
                 if (ownerProfile) {
                     ownerProfile.notifications = ownerProfile.notifications || [];
                     ownerProfile.notifications.push(savedNotif._id);
@@ -59,15 +67,13 @@ class CommentService {
     }
 
     async getCommentById(id) {
-        const comment = await Comment.findById(id);
+        const comment = await this.commentModel.findById(id);
         if (!comment) {
-            const error = new Error('Comentario no encontrado');
-            error.statusCode = 404;
-            throw error;
+            throw new NotFoundError('Comentario no encontrado');
         }
 
-        const profile = await Profile.findOne({ user: comment.createdBy });
-        const user = await User.findById(comment.createdBy);
+        const profile = await this.profileModel.findOne({ user: comment.createdBy });
+        const user = await this.userModel.findById(comment.createdBy);
 
         return {
             comment: {
@@ -80,11 +86,13 @@ class CommentService {
                 updatedAt: comment.updatedAt
             },
             profileData: {
-                profile: profile ? profile.toObject() : {},
-                user: user ? user.toObject() : {}
+                profile: profile ? (profile.toObject ? profile.toObject() : profile) : {},
+                user: user ? (user.toObject ? user.toObject() : user) : {}
             }
         };
     }
 }
 
-module.exports = new CommentService();
+const commentService = new CommentService();
+module.exports = commentService;
+module.exports.CommentService = CommentService;

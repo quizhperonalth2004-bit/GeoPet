@@ -2,39 +2,43 @@ const Pet = require('./models/pet.model');
 const User = require('../users/models/user.model');
 const cloudinary = require('../../config/cloudinary');
 const fs = require('fs');
+const { BadRequestError, NotFoundError, ForbiddenError } = require('../../shared/errors');
 
 class PetsService {
+    /**
+     * @param {Object} [dependencies] Inyección de dependencias para modelos y servicios externos
+     */
+    constructor(dependencies = {}) {
+        this.petModel = dependencies.petModel || Pet;
+        this.userModel = dependencies.userModel || User;
+        this.cloudinaryUploader = dependencies.cloudinaryUploader || cloudinary.uploader;
+    }
+
     async createPet(data, files, currentUser) {
         const currentUserId = currentUser ? String(currentUser.userId || currentUser.id || currentUser._id || '') : null;
         const role = currentUser ? (currentUser.rol || currentUser.role) : null;
 
         let ownerId = data.owner || currentUserId;
         if (!ownerId) {
-            const error = new Error('Owner ID is required');
-            error.statusCode = 400;
-            throw error;
+            throw new BadRequestError('Owner ID is required');
         }
 
         // Si el usuario no es admin, no permitir registrar mascotas asignadas a otro ID
         if (currentUserId && String(ownerId) !== currentUserId && role !== 'admin') {
-            const error = new Error('Acceso denegado: No puedes registrar una mascota a nombre de otro usuario.');
-            error.statusCode = 403;
-            throw error;
+            throw new ForbiddenError('Acceso denegado: No puedes registrar una mascota a nombre de otro usuario.');
         }
 
         // Verificar si el usuario existe
-        const user = await User.findById(ownerId);
+        const user = await this.userModel.findById(ownerId);
         if (!user) {
-            const error = new Error('User not found');
-            error.statusCode = 404;
-            throw error;
+            throw new NotFoundError('User not found');
         }
 
         let photo_url = '';
         if (files && files.photo_profile && files.photo_profile.length > 0) {
             const filePath = files.photo_profile[0].path;
             try {
-                const result = await cloudinary.uploader.upload(filePath, {
+                const result = await this.cloudinaryUploader.upload(filePath, {
                     folder: 'pets',
                     transformation: [{ width: 300, height: 300, crop: 'fill' }]
                 });
@@ -61,9 +65,7 @@ class PetsService {
         }
 
         if (!photo_url) {
-            const error = new Error('La imagen de perfil es requerida');
-            error.statusCode = 400;
-            throw error;
+            throw new BadRequestError('La imagen de perfil es requerida');
         }
 
         const petData = {
@@ -76,44 +78,36 @@ class PetsService {
             photo_url: photo_url
         };
 
-        const pet = new Pet(petData);
+        const pet = new this.petModel(petData);
         await pet.save();
         return pet;
     }
 
     async getAllPets() {
-        return await Pet.find();
+        return await this.petModel.find();
     }
 
     async getPetsByUser(ownerId) {
         if (!ownerId) {
-            const error = new Error('Owner ID is required');
-            error.statusCode = 400;
-            throw error;
+            throw new BadRequestError('Owner ID is required');
         }
 
-        const user = await User.findById(ownerId);
+        const user = await this.userModel.findById(ownerId);
         if (!user) {
-            const error = new Error('User not found');
-            error.statusCode = 404;
-            throw error;
+            throw new NotFoundError('User not found');
         }
 
-        return await Pet.find({ owner: ownerId });
+        return await this.petModel.find({ owner: ownerId });
     }
 
     async changeStatusPet(petId, status, currentUser) {
         if (typeof status !== 'boolean') {
-            const error = new Error('El nuevo estado debe ser un valor booleano.');
-            error.statusCode = 400;
-            throw error;
+            throw new BadRequestError('El nuevo estado debe ser un valor booleano.');
         }
 
-        const pet = await Pet.findById(petId);
+        const pet = await this.petModel.findById(petId);
         if (!pet) {
-            const error = new Error('Mascota no encontrada.');
-            error.statusCode = 404;
-            throw error;
+            throw new NotFoundError('Mascota no encontrada.');
         }
 
         if (currentUser) {
@@ -122,9 +116,7 @@ class PetsService {
             const role = currentUser.rol || currentUser.role;
 
             if (currentUserId !== petOwnerId && role !== 'admin') {
-                const error = new Error('Acceso denegado: Solo el propietario o un administrador pueden modificar el estado de esta mascota.');
-                error.statusCode = 403;
-                throw error;
+                throw new ForbiddenError('Acceso denegado: Solo el propietario o un administrador pueden modificar el estado de esta mascota.');
             }
         }
 
@@ -134,7 +126,7 @@ class PetsService {
     }
 
     async getPetById(id) {
-        return await Pet.findById(id);
+        return await this.petModel.findById(id);
     }
 
     async updatePet(id, updates, currentUser) {
@@ -142,16 +134,12 @@ class PetsService {
         const isValidOperation = Object.keys(updates).every(update => allowedUpdates.includes(update));
 
         if (!isValidOperation) {
-            const error = new Error('Invalid updates!');
-            error.statusCode = 400;
-            throw error;
+            throw new BadRequestError('Invalid updates!');
         }
 
-        const pet = await Pet.findById(id);
+        const pet = await this.petModel.findById(id);
         if (!pet) {
-            const error = new Error('Pet not found');
-            error.statusCode = 404;
-            throw error;
+            throw new NotFoundError('Pet not found');
         }
 
         if (currentUser) {
@@ -160,9 +148,7 @@ class PetsService {
             const role = currentUser.rol || currentUser.role;
 
             if (currentUserId !== petOwnerId && role !== 'admin') {
-                const error = new Error('Acceso denegado: Solo el propietario o un administrador pueden editar esta mascota.');
-                error.statusCode = 403;
-                throw error;
+                throw new ForbiddenError('Acceso denegado: Solo el propietario o un administrador pueden editar esta mascota.');
             }
         }
 
@@ -172,11 +158,9 @@ class PetsService {
     }
 
     async deletePet(id, currentUser) {
-        const pet = await Pet.findById(id);
+        const pet = await this.petModel.findById(id);
         if (!pet) {
-            const error = new Error('Pet not found');
-            error.statusCode = 404;
-            throw error;
+            throw new NotFoundError('Pet not found');
         }
 
         if (currentUser) {
@@ -185,15 +169,15 @@ class PetsService {
             const role = currentUser.rol || currentUser.role;
 
             if (currentUserId !== petOwnerId && role !== 'admin') {
-                const error = new Error('Acceso denegado: Solo el propietario o un administrador pueden eliminar esta mascota.');
-                error.statusCode = 403;
-                throw error;
+                throw new ForbiddenError('Acceso denegado: Solo el propietario o un administrador pueden eliminar esta mascota.');
             }
         }
 
-        await Pet.findByIdAndDelete(id);
+        await this.petModel.findByIdAndDelete(id);
         return pet;
     }
 }
 
-module.exports = new PetsService();
+const petsService = new PetsService();
+module.exports = petsService;
+module.exports.PetsService = PetsService;

@@ -5,7 +5,15 @@ const authMiddleware = require('../../middlewares/auth.middleware');
 const { twilioClient, twilioFrom } = require('../../config/twilio');
 const { sendMail, getOtpEmailTemplate } = require('../../config/mailer');
 const { OAuth2Client } = require('google-auth-library');
-const googleClient = new OAuth2Client(process.env.GOOGLE_CLIENT_ID || '949676830099-frgugu7f83scll83lf3mv1sjav6vshh3.apps.googleusercontent.com');
+const {
+    AppError,
+    BadRequestError,
+    NotFoundError,
+    UnauthorizedError,
+    ConflictError
+} = require('../../shared/errors');
+
+const defaultGoogleClient = new OAuth2Client(process.env.GOOGLE_CLIENT_ID || '949676830099-frgugu7f83scll83lf3mv1sjav6vshh3.apps.googleusercontent.com');
 
 // Generador de clave aleatoria para restablecimiento
 function generateRandomPassword(length = 6) {
@@ -19,32 +27,37 @@ function generateRandomPassword(length = 6) {
 }
 
 class AuthService {
+    /**
+     * @param {Object} [dependencies] Inyección limpia de dependencias
+     */
+    constructor(dependencies = {}) {
+        this.userModel = dependencies.userModel || User;
+        this.bcrypt = dependencies.bcrypt || bcrypt;
+        this.jwt = dependencies.jwt || jwt;
+        this.googleClient = dependencies.googleClient || defaultGoogleClient;
+        this.twilioClient = dependencies.twilioClient !== undefined ? dependencies.twilioClient : twilioClient;
+        this.sendMail = dependencies.sendMail || sendMail;
+        this.getOtpEmailTemplate = dependencies.getOtpEmailTemplate || getOtpEmailTemplate;
+    }
+
     async login(email, password) {
         const jwtSecret = process.env.JWT_SECRET;
         if (!jwtSecret) {
-            const error = new Error('Error de configuración del servidor: JWT_SECRET no está definido.');
-            error.statusCode = 500;
-            throw error;
+            throw new AppError('Error de configuración del servidor: JWT_SECRET no está definido.', 500);
         }
-        const user = await User.findOne({ email });
+        const user = await this.userModel.findOne({ email });
 
         if (!user) {
-            const error = new Error('No existe usuario registrado con este correo electrónico.');
-            error.statusCode = 404;
-            throw error;
+            throw new NotFoundError('No existe usuario registrado con este correo electrónico.');
         }
 
         if (user.auth_provider === 'google') {
-            const error = new Error('Esta cuenta fue registrada con Google. Por favor, inicia sesión con el botón de Google.');
-            error.statusCode = 400;
-            throw error;
+            throw new BadRequestError('Esta cuenta fue registrada con Google. Por favor, inicia sesión con el botón de Google.');
         }
 
-        const isMatch = await bcrypt.compare(password, user.password);
+        const isMatch = await this.bcrypt.compare(password, user.password);
         if (!isMatch) {
-            const error = new Error('La contraseña proporcionada es incorrecta.');
-            error.statusCode = 401;
-            throw error;
+            throw new UnauthorizedError('La contraseña proporcionada es incorrecta.');
         }
 
         // Actualizar última interacción
@@ -52,7 +65,7 @@ class AuthService {
         await user.save();
 
         // Generar token JWT
-        const token = jwt.sign(
+        const token = this.jwt.sign(
             { userId: user._id, email: user.email, rol: user.rol },
             jwtSecret,
             { expiresIn: process.env.JWT_EXPIRES_IN || '24h' }
@@ -95,24 +108,18 @@ class AuthService {
 
     async forgotPassword(email) {
         if (!email || typeof email !== 'string' || !email.trim()) {
-            const error = new Error('El correo electrónico es requerido.');
-            error.statusCode = 400;
-            throw error;
+            throw new BadRequestError('El correo electrónico es requerido.');
         }
 
         const normalizedEmail = email.toLowerCase().trim();
-        const user = await User.findOne({ email: normalizedEmail });
+        const user = await this.userModel.findOne({ email: normalizedEmail });
 
         if (!user) {
-            const error = new Error('No existe ninguna cuenta registrada con este correo electrónico.');
-            error.statusCode = 404;
-            throw error;
+            throw new NotFoundError('No existe ninguna cuenta registrada con este correo electrónico.');
         }
 
         if (user.auth_provider === 'google') {
-            const error = new Error('Esta cuenta fue registrada con Google. Por favor, inicia sesión con el botón de Google.');
-            error.statusCode = 400;
-            throw error;
+            throw new BadRequestError('Esta cuenta fue registrada con Google. Por favor, inicia sesión con el botón de Google.');
         }
 
         // Generar código numérico de 6 dígitos
@@ -124,11 +131,11 @@ class AuthService {
         await user.save();
 
         // Enviar correo con el código
-        const html = getOtpEmailTemplate(user.name, otp);
+        const html = this.getOtpEmailTemplate(user.name, otp);
         const text = `Hola ${user.name}, tu código de verificación para restablecer tu contraseña en GeoPet es: ${otp}. Expira en 15 minutos.`;
 
         try {
-            await sendMail({
+            await this.sendMail({
                 to: user.email,
                 subject: '🐾 GeoPet - Código de Recuperación de Contraseña',
                 html,
@@ -147,42 +154,30 @@ class AuthService {
 
     async resetPasswordWithOtp(email, code, newPassword) {
         if (!email || !code || !newPassword) {
-            const error = new Error('Correo, código de verificación y nueva contraseña son requeridos.');
-            error.statusCode = 400;
-            throw error;
+            throw new BadRequestError('Correo, código de verificación y nueva contraseña son requeridos.');
         }
 
         const normalizedEmail = email.toLowerCase().trim();
-        const user = await User.findOne({ email: normalizedEmail });
+        const user = await this.userModel.findOne({ email: normalizedEmail });
 
         if (!user) {
-            const error = new Error('No existe ninguna cuenta registrada con este correo electrónico.');
-            error.statusCode = 404;
-            throw error;
+            throw new NotFoundError('No existe ninguna cuenta registrada con este correo electrónico.');
         }
 
         if (user.auth_provider === 'google') {
-            const error = new Error('Esta cuenta fue registrada con Google. No utiliza contraseña local.');
-            error.statusCode = 400;
-            throw error;
+            throw new BadRequestError('Esta cuenta fue registrada con Google. No utiliza contraseña local.');
         }
 
         if (!user.reset_password_otp || user.reset_password_otp !== String(code).trim()) {
-            const error = new Error('El código de verificación es incorrecto.');
-            error.statusCode = 400;
-            throw error;
+            throw new BadRequestError('El código de verificación es incorrecto.');
         }
 
         if (!user.reset_password_expires || new Date() > user.reset_password_expires) {
-            const error = new Error('El código de verificación ha expirado. Por favor, solicita uno nuevo.');
-            error.statusCode = 400;
-            throw error;
+            throw new BadRequestError('El código de verificación ha expirado. Por favor, solicita uno nuevo.');
         }
 
         if (typeof newPassword !== 'string' || newPassword.length < 6) {
-            const error = new Error('La nueva contraseña debe tener al menos 6 caracteres.');
-            error.statusCode = 400;
-            throw error;
+            throw new BadRequestError('La nueva contraseña debe tener al menos 6 caracteres.');
         }
 
         await user.updatePassword(newPassword);
@@ -201,27 +196,23 @@ class AuthService {
         const email = typeof emailOrParams === 'object' ? emailOrParams.email : emailOrParams;
         const targetPhone = typeof emailOrParams === 'object' ? emailOrParams.phone : phone;
 
-        const user = await User.findOne({ email });
+        const user = await this.userModel.findOne({ email });
         if (!user) {
-            const error = new Error('No existe usuario registrado con este correo electrónico.');
-            error.statusCode = 404;
-            throw error;
+            throw new NotFoundError('No existe usuario registrado con este correo electrónico.');
         }
 
         const newPassword = generateRandomPassword(6);
         await user.updatePassword(newPassword);
 
         if (!targetPhone) {
-            const error = new Error('El usuario no tiene un número de teléfono registrado.');
-            error.statusCode = 400;
-            throw error;
+            throw new BadRequestError('El usuario no tiene un número de teléfono registrado.');
         }
 
         const fullPhoneNumber = targetPhone.startsWith('+') ? targetPhone : `+593${targetPhone}`;
 
-        if (twilioClient) {
+        if (this.twilioClient) {
             try {
-                await twilioClient.messages.create({
+                await this.twilioClient.messages.create({
                     body: `Hola ${user.name}, tu nueva contraseña es: ${newPassword}. Por favor, cámbiala una vez que inicies sesión.`,
                     from: twilioFrom,
                     to: fullPhoneNumber
@@ -242,9 +233,7 @@ class AuthService {
         const accessToken = typeof params === 'object' ? (params?.accessToken || params?.access_token) : null;
 
         if (!idToken && !accessToken) {
-            const error = new Error('Token de Google no proporcionado.');
-            error.statusCode = 400;
-            throw error;
+            throw new BadRequestError('Token de Google no proporcionado.');
         }
 
         const audience = process.env.GOOGLE_CLIENT_ID || '949676830099-frgugu7f83scll83lf3mv1sjav6vshh3.apps.googleusercontent.com';
@@ -253,7 +242,7 @@ class AuthService {
 
         if (idToken) {
             try {
-                const ticket = await googleClient.verifyIdToken({
+                const ticket = await this.googleClient.verifyIdToken({
                     idToken,
                     audience
                 });
@@ -263,7 +252,7 @@ class AuthService {
                 console.warn('[GOOGLE_AUTH_DEBUG] verifyIdToken falló:', err.message);
                 // Fallback seguro: Decodificar el ID Token (JWT emitido por Google)
                 try {
-                    const decoded = jwt.decode(idToken);
+                    const decoded = this.jwt.decode(idToken);
                     if (decoded && decoded.email) {
                         payload = decoded;
                         console.log('[GOOGLE_AUTH_DEBUG] idToken decodificado con fallback jwt.decode:', payload.email);
@@ -304,9 +293,7 @@ class AuthService {
         }
 
         if (!payload || !payload.email) {
-            const error = new Error('No se pudo verificar ni obtener información del perfil de Google.');
-            error.statusCode = 400;
-            throw error;
+            throw new BadRequestError('No se pudo verificar ni obtener información del perfil de Google.');
         }
 
         const email = payload.email.toLowerCase().trim();
@@ -315,7 +302,7 @@ class AuthService {
         const picture = payload.picture || '';
 
         // Buscar si el usuario ya existe en la base de datos
-        let user = await User.findOne({ email });
+        let user = await this.userModel.findOne({ email });
         let profileDoc = null;
         const Profile = require('../users/models/profile.model');
 
@@ -329,16 +316,16 @@ class AuthService {
                 if (!baseUsername) baseUsername = 'user';
                 let uniqueUsername = baseUsername;
                 let counter = 1;
-                while (await User.findOne({ username: uniqueUsername })) {
+                while (await this.userModel.findOne({ username: uniqueUsername })) {
                     uniqueUsername = `${baseUsername}${counter}`;
                     counter++;
                 }
 
                 // Generar contraseña segura aleatoria
                 const randomPassword = generateRandomPassword(16);
-                const hashedPassword = await bcrypt.hash(randomPassword, 10);
+                const hashedPassword = await this.bcrypt.hash(randomPassword, 10);
 
-                user = new User({
+                user = new this.userModel({
                     name: name || 'Usuario',
                     last_name: lastName || '',
                     username: uniqueUsername,
@@ -385,9 +372,7 @@ class AuthService {
         } else {
             // Validar proveedor de autenticación
             if (user.auth_provider === 'local') {
-                const error = new Error('Este correo ya está registrado con contraseña. Por favor, inicia sesión con tus credenciales habituales.');
-                error.statusCode = 409;
-                throw error;
+                throw new ConflictError('Este correo ya está registrado con contraseña. Por favor, inicia sesión con tus credenciales habituales.');
             }
 
             // Actualizar última interacción
@@ -426,11 +411,9 @@ class AuthService {
         // Generar token JWT de la aplicación
         const jwtSecret = process.env.JWT_SECRET;
         if (!jwtSecret) {
-            const error = new Error('Error de configuración del servidor: JWT_SECRET no está definido.');
-            error.statusCode = 500;
-            throw error;
+            throw new AppError('Error de configuración del servidor: JWT_SECRET no está definido.', 500);
         }
-        const token = jwt.sign(
+        const token = this.jwt.sign(
             { userId: user._id, email: user.email, rol: user.rol },
             jwtSecret,
             { expiresIn: process.env.JWT_EXPIRES_IN || '24h' }
@@ -463,4 +446,6 @@ class AuthService {
     }
 }
 
-module.exports = new AuthService();
+const authService = new AuthService();
+module.exports = authService;
+module.exports.AuthService = AuthService;
