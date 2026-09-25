@@ -45,7 +45,14 @@ class AuthService {
         if (!jwtSecret) {
             throw new AppError('Error de configuración del servidor: JWT_SECRET no está definido.', 500);
         }
-        const user = await this.userModel.findOne({ email });
+        const normalizedEmail = (email || '').toLowerCase().trim();
+        const escapedEmail = normalizedEmail.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+        const user = await this.userModel.findOne({
+            $or: [
+                { email: normalizedEmail },
+                { email: { $regex: new RegExp(`^\\s*${escapedEmail}\\s*$`, 'i') } }
+            ]
+        });
 
         if (!user) {
             throw new NotFoundError('No existe usuario registrado con este correo electrónico.');
@@ -116,7 +123,13 @@ class AuthService {
         }
 
         const normalizedEmail = email.toLowerCase().trim();
-        const user = await this.userModel.findOne({ email: normalizedEmail });
+        const escapedEmail = normalizedEmail.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+        const user = await this.userModel.findOne({
+            $or: [
+                { email: normalizedEmail },
+                { email: { $regex: new RegExp(`^\\s*${escapedEmail}\\s*$`, 'i') } }
+            ]
+        });
 
         if (!user) {
             throw new NotFoundError('No existe ninguna cuenta registrada con este correo electrónico.');
@@ -162,7 +175,13 @@ class AuthService {
         }
 
         const normalizedEmail = email.toLowerCase().trim();
-        const user = await this.userModel.findOne({ email: normalizedEmail });
+        const escapedEmail = normalizedEmail.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+        const user = await this.userModel.findOne({
+            $or: [
+                { email: normalizedEmail },
+                { email: { $regex: new RegExp(`^\\s*${escapedEmail}\\s*$`, 'i') } }
+            ]
+        });
 
         if (!user) {
             throw new NotFoundError('No existe ninguna cuenta registrada con este correo electrónico.');
@@ -305,8 +324,14 @@ class AuthService {
         const lastName = payload.family_name || payload.name?.split(' ').slice(1).join(' ') || '';
         const picture = payload.picture || '';
 
-        // Buscar si el usuario ya existe en la base de datos
-        let user = await this.userModel.findOne({ email });
+        const escapedEmail = email.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+        // Buscar si el usuario ya existe en la base de datos (insensible a mayúsculas/minúsculas y espacios)
+        let user = await this.userModel.findOne({
+            $or: [
+                { email },
+                { email: { $regex: new RegExp(`^\\s*${escapedEmail}\\s*$`, 'i') } }
+            ]
+        });
         let profileDoc = null;
         const Profile = require('../users/models/profile.model');
 
@@ -374,8 +399,8 @@ class AuthService {
                 }
             }
         } else {
-            // Validar proveedor de autenticación
-            if (user.auth_provider === 'local') {
+            // Validar proveedor de autenticación: si no fue creado con google, rechazar para evitar duplicados o sobrescritura
+            if (user.auth_provider !== 'google') {
                 throw new ConflictError('Este correo ya está registrado con contraseña. Por favor, inicia sesión con tus credenciales habituales.');
             }
 

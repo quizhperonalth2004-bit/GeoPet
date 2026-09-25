@@ -291,5 +291,29 @@ describe('Auth Module Tests', () => {
             expect(saveUserSpy).toHaveBeenCalled();
             expect(saveProfileSpy).toHaveBeenCalled();
         });
+
+        it('Debe lanzar ConflictError (409) si el usuario ya existe registrado con contraseña local', async () => {
+            const authService = require('../src/modules/auth/auth.service');
+            const mockExistingUser = {
+                _id: '507f1f77bcf86cd799439099',
+                name: 'Usuario Local',
+                email: 'existente@example.com',
+                auth_provider: 'local'
+            };
+
+            jest.spyOn(User, 'findOne').mockResolvedValue(mockExistingUser);
+
+            const { OAuth2Client } = require('google-auth-library');
+            jest.spyOn(OAuth2Client.prototype, 'verifyIdToken').mockResolvedValue({
+                getPayload: () => ({
+                    email: 'existente@example.com',
+                    name: 'Existing Google User'
+                })
+            });
+
+            await expect(authService.googleLogin('fake-google-token'))
+                .rejects
+                .toThrow('Este correo ya está registrado con contraseña.');
+        });
     });
 });
