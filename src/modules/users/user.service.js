@@ -22,7 +22,8 @@ class UserService {
     }
 
     async createUser(userData) {
-        const hashedPassword = await bcrypt.hash(userData.password, 10);
+        const saltRounds = process.env.NODE_ENV === 'test' ? 4 : 10;
+        const hashedPassword = await bcrypt.hash(userData.password, saltRounds);
 
         const userPayload = {
             name: userData.name,

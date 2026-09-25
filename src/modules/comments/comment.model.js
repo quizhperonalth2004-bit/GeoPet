@@ -12,11 +12,6 @@ const commentSchema = new Schema({
         ref: 'User',
         required: true
     },
-    forum: {
-        type: mongoose.Schema.Types.ObjectId,
-        ref: 'Forum',
-        required: false
-    },
     post: {
         type: mongoose.Schema.Types.ObjectId,
         ref: 'Post',

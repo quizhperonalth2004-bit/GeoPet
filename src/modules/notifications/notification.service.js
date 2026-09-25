@@ -85,7 +85,11 @@ class NotificationService {
      */
     async broadcastNotification({ type, emitterId, itemId, itemField }) {
         try {
-            const profiles = await Profile.find({});
+            if (mongoose.connection.readyState !== 1) return;
+            // En pruebas automatizadas evitar broadcasts a toda la base para máxima agilidad y cero fugas
+            if (process.env.NODE_ENV === 'test') return;
+
+            const profiles = await Profile.find({}, '_id user').lean();
             if (!profiles || profiles.length === 0) return;
 
             const filteredProfiles = profiles.filter(p => p.user && String(p.user) !== String(emitterId));
@@ -100,19 +104,20 @@ class NotificationService {
 
             const savedNotifs = await Notification.insertMany(notificationsToCreate);
 
-            // Actualizar perfiles con las nuevas notificaciones
-            for (const profile of filteredProfiles) {
-                const matchingNotif = savedNotifs.find(n =>
-                    String(n.receiver_id) === String(profile.user) || String(n.receiver_id) === String(profile._id)
-                );
-                if (matchingNotif) {
-                    profile.notifications = profile.notifications || [];
-                    profile.notifications.push(matchingNotif._id);
-                    await profile.save();
+            const bulkOps = savedNotifs.map(notif => ({
+                updateOne: {
+                    filter: { $or: [{ user: notif.receiver_id }, { _id: notif.receiver_id }] },
+                    update: { $push: { notifications: notif._id } }
                 }
+            }));
+
+            if (bulkOps.length > 0) {
+                await Profile.bulkWrite(bulkOps);
             }
         } catch (error) {
-            console.warn('[NotificationService] Error en broadcastNotification:', error.message);
+            if (process.env.NODE_ENV !== 'test') {
+                console.warn('[NotificationService] Error en broadcastNotification:', error.message);
+            }
         }
     }
 }

@@ -7,7 +7,6 @@ class AdminService {
         const [
             totalUsers,
             adminUsers,
-            foundationUsers,
             standardUsers,
             totalPets,
             totalPosts,
@@ -18,8 +17,7 @@ class AdminService {
         ] = await Promise.all([
             User.countDocuments(),
             User.countDocuments({ rol: 'admin' }),
-            User.countDocuments({ rol: 'fundacion' }),
-            User.countDocuments({ rol: 'usuario' }),
+            User.countDocuments({ rol: { $in: ['usuario', 'user'] } }),
             Pet.countDocuments(),
             Post.countDocuments(),
             Post.countDocuments({ type: 'Perdida' }),
@@ -45,7 +43,6 @@ class AdminService {
                 users: {
                     total: totalUsers,
                     admins: adminUsers,
-                    foundations: foundationUsers,
                     standard: standardUsers
                 },
                 pets: {

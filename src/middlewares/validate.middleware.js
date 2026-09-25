@@ -1,4 +1,37 @@
-const { ValidationError } = require('../shared/errors');
+const { z } = require('zod');
+const { verificarCedula } = require('udv-ec');
+
+/**
+ * Validador Zod personalizado para cédulas ecuatorianas
+ */
+const cedulaEcSchema = z.string()
+    .trim()
+    .refine(val => !val || verificarCedula(val), {
+        message: 'Cédula inválida.'
+    });
+
+/**
+ * Validador Zod personalizado para fortaleza de contraseñas:
+ * - Mínimo 8 caracteres
+ * - Al menos una mayúscula
+ * - Al menos una minúscula
+ * - Al menos un dígito
+ * - Al menos un símbolo
+ */
+const strongPasswordSchema = z.string({
+    required_error: 'La contraseña es obligatoria.',
+    invalid_type_error: 'La contraseña debe ser una cadena de texto.'
+})
+    .min(8, 'La contraseña debe tener al menos 8 caracteres.')
+    .regex(/[A-Z]/, 'La contraseña debe contener al menos una letra mayúscula.')
+    .regex(/[a-z]/, 'La contraseña debe contener al menos una letra minúscula.')
+    .regex(/[0-9]/, 'La contraseña debe contener al menos un número.')
+    .regex(/[^A-Za-z0-9]/, 'La contraseña debe contener al menos un símbolo.');
+
+/**
+ * Validador Zod para ObjectId de MongoDB (24 caracteres hexadecimales)
+ */
+const mongoIdSchema = z.string().regex(/^[0-9a-fA-F]{24}$/, 'ID inválido');
 
 /**
  * Middleware genérico de validación declarativa utilizando Zod.
@@ -31,14 +64,16 @@ const validate = (schemaOrConfig, defaultSource = 'body') => {
             next();
         } catch (error) {
             if (error.name === 'ZodError') {
-                const firstIssue = error.issues[0];
+                const firstIssue = error.issues && error.issues[0];
                 const firstMessage = firstIssue ? firstIssue.message : 'Error de validación en la solicitud.';
-                const details = error.issues.map(issue => ({
+                const details = (error.issues || []).map(issue => ({
                     field: issue.path.join('.'),
                     message: issue.message
                 }));
 
                 return res.status(400).json({
+                    success: false,
+                    statusCode: 400,
                     message: firstMessage,
                     error: firstMessage,
                     details,
@@ -49,5 +84,10 @@ const validate = (schemaOrConfig, defaultSource = 'body') => {
         }
     };
 };
+
+validate.validate = validate;
+validate.cedulaEcSchema = cedulaEcSchema;
+validate.strongPasswordSchema = strongPasswordSchema;
+validate.mongoIdSchema = mongoIdSchema;
 
 module.exports = validate;

@@ -1,67 +1,59 @@
-const { verificarCedula } = require('udv-ec');
-const passwordValidator = require('password-validator');
-
-// Esquema de validación de contraseñas
-const passwordSchema = new passwordValidator();
-passwordSchema
-    .is().min(8)                                    // Longitud mínima 8 caracteres
-    .has().uppercase()                              // Al menos una letra mayúscula
-    .has().lowercase()                              // Al menos una letra minúscula
-    .has().digits()                                 // Al menos un número
-    .has().symbols();                               // Al menos un símbolo
+const { cedulaEcSchema, strongPasswordSchema } = require('./validate.middleware');
 
 /**
- * Middleware para validar el número de cédula ecuatoriana (opcional)
+ * Middleware para validar el número de cédula ecuatoriana (opcional en el body)
+ * Adaptado a validador Zod consolidado
  */
 const validateCi = (req, res, next) => {
-    const cedula = req.body.ci;
+    const cedula = req.body && req.body.ci;
 
     if (!cedula) {
         return next();
     }
 
-    if (verificarCedula(cedula)) {
+    const result = cedulaEcSchema.safeParse(cedula);
+    if (result.success) {
         next();
     } else {
-        res.status(400).json({ message: 'Cédula inválida.' });
+        res.status(400).json({
+            success: false,
+            statusCode: 400,
+            message: 'Cédula inválida.',
+            error: 'Cédula inválida.'
+        });
     }
 };
 
 /**
  * Middleware para validar la fortaleza de la contraseña
+ * Adaptado a validador Zod consolidado
  */
 const validatePassword = (req, res, next) => {
-    const password = req.body.password;
+    const password = req.body && req.body.password;
 
     if (!password) {
-        return res.status(400).json({ message: 'La contraseña es obligatoria.' });
+        return res.status(400).json({
+            success: false,
+            statusCode: 400,
+            message: 'La contraseña es obligatoria.',
+            error: 'La contraseña es obligatoria.'
+        });
     }
 
-    const validationResults = passwordSchema.validate(password, { details: true });
+    const result = strongPasswordSchema.safeParse(password);
 
-    if (validationResults.length === 0) {
+    if (result.success) {
         next();
     } else {
-        const errorMessages = validationResults.map(error => {
-            switch (error.validation) {
-                case 'min':
-                    return 'La contraseña debe tener al menos 8 caracteres.';
-                case 'uppercase':
-                    return 'La contraseña debe contener al menos una letra mayúscula.';
-                case 'lowercase':
-                    return 'La contraseña debe contener al menos una letra minúscula.';
-                case 'digits':
-                    return 'La contraseña debe contener al menos un número.';
-                case 'symbols':
-                    return 'La contraseña debe contener al menos un símbolo.';
-                default:
-                    return 'La contraseña no cumple con los requisitos de seguridad.';
-            }
-        });
+        const errorMessages = result.error.issues.map(issue => issue.message);
 
         res.status(400).json({
+            success: false,
+            statusCode: 400,
             message: 'La contraseña no cumple con los requisitos.',
-            errors: errorMessages
+            error: 'La contraseña no cumple con los requisitos.',
+            errors: errorMessages,
+            details: errorMessages
         });
     }
 };

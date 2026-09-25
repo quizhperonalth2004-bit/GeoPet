@@ -61,8 +61,12 @@ class AuthService {
         }
 
         // Actualizar última interacción
-        user.last_interaction = new Date();
-        await user.save();
+        if (typeof user.save === 'function') {
+            user.last_interaction = new Date();
+            await user.save();
+        } else if (mongoose.connection.readyState === 1) {
+            await this.userModel.updateOne({ _id: user._id }, { $set: { last_interaction: new Date() } });
+        }
 
         // Generar token JWT
         const token = this.jwt.sign(

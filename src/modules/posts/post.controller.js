@@ -1,17 +1,17 @@
 const postService = require('./post.service');
 
 const postController = {
-    createPost: async (req, res) => {
+    createPost: async (req, res, next) => {
         try {
             const result = await postService.createPost(req.body, req.files);
             res.status(201).json(result);
         } catch (error) {
             console.error('Error al crear la publicación:', error);
-            res.status(error.statusCode || 500).json({ error: error.message || 'Hubo un error al crear la publicación' });
+            next(error);
         }
     },
 
-    addSighting: async (req, res) => {
+    addSighting: async (req, res, next) => {
         try {
             const { id } = req.params;
             const result = await postService.addSighting(id, req.body, req.user, req.files);
@@ -20,14 +20,11 @@ const postController = {
             if (process.env.NODE_ENV !== 'test') {
                 console.error('Error al registrar avistamiento:', error);
             }
-            res.status(error.statusCode || 500).json({
-                message: error.message || 'Error al registrar avistamiento',
-                error: error.message || 'Error al registrar avistamiento'
-            });
+            next(error);
         }
     },
 
-    getPostByUserId: async (req, res) => {
+    getPostByUserId: async (req, res, next) => {
         try {
             const enrichedPosts = await postService.getPostByUserId(req.params.id);
             res.status(200).json(enrichedPosts || []);
@@ -37,72 +34,87 @@ const postController = {
         }
     },
 
-    getPost: async (req, res) => {
+    getPost: async (req, res, next) => {
         try {
             const enrichedPosts = await postService.getPost(req.query);
             res.send(enrichedPosts);
         } catch (error) {
             console.error('Error al obtener posts:', error);
-            res.status(500).json({ error: 'Error fetching posts' });
+            next(error);
         }
     },
 
-    getPostsAll: async (req, res) => {
+    getPostsAll: async (req, res, next) => {
         try {
             const posts = await postService.getPostsAll();
             res.send(posts);
         } catch (error) {
             console.error('Error fetching posts:', error);
-            res.status(500).send('Error fetching posts');
+            next(error);
         }
     },
 
-    getPostsAllByUser: async (req, res) => {
+    getPostsAllByUser: async (req, res, next) => {
         try {
             const posts = await postService.getPostsAllByUser(req.params.id);
             res.send(posts);
         } catch (error) {
             console.error('Error fetching posts by user:', error);
-            res.status(500).send('Error fetching posts');
+            next(error);
         }
     },
 
-    getPostById: async (req, res) => {
+    getPostById: async (req, res, next) => {
         try {
             const postDetails = await postService.getPostById(req.params.id);
             if (!postDetails) {
-                return res.status(404).json({ error: 'Post not found' });
+                return res.status(404).json({
+                    success: false,
+                    statusCode: 404,
+                    message: 'Post not found',
+                    error: 'Post not found'
+                });
             }
             res.json(postDetails);
         } catch (error) {
             console.error('Error al obtener post por id:', error);
-            res.status(500).json({ error: 'Error fetching post' });
+            next(error);
         }
     },
 
-    updatePost: async (req, res) => {
+    updatePost: async (req, res, next) => {
         try {
             const post = await postService.updatePost(req.params.id, req.body);
             if (!post) {
-                return res.status(404).send({ error: 'Post not found' });
+                return res.status(404).json({
+                    success: false,
+                    statusCode: 404,
+                    message: 'Post not found',
+                    error: 'Post not found'
+                });
             }
             res.send(post);
         } catch (error) {
             console.error('Error al actualizar post:', error);
-            res.status(error.statusCode || 400).send(error.message);
+            next(error);
         }
     },
 
-    deletePost: async (req, res) => {
+    deletePost: async (req, res, next) => {
         try {
             const post = await postService.deletePost(req.params.id);
             if (!post) {
-                return res.status(404).send({ error: 'Post not found' });
+                return res.status(404).json({
+                    success: false,
+                    statusCode: 404,
+                    message: 'Post not found',
+                    error: 'Post not found'
+                });
             }
             res.send(post);
         } catch (error) {
             console.error('Error al eliminar post:', error);
-            res.status(500).send(error.message);
+            next(error);
         }
     }
 };

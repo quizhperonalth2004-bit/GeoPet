@@ -32,12 +32,25 @@ class PostService {
         }
 
         try {
-            const user = await this.userModel.findById(ownerId);
-            const profile = await this.profileModel.findOne({ user: ownerId });
+            const userQuery = this.userModel.findById(ownerId);
+            const userProm = (userQuery && typeof userQuery.select === 'function')
+                ? (typeof userQuery.lean === 'function' ? userQuery.select('-password -__v').lean() : userQuery.select('-password -__v'))
+                : userQuery;
+
+            const profileQuery = this.profileModel.findOne({ user: ownerId });
+            const profileProm = (profileQuery && typeof profileQuery.select === 'function')
+                ? (typeof profileQuery.lean === 'function' ? profileQuery.select('-__v').lean() : profileQuery.select('-__v'))
+                : profileQuery;
+
+            const [user, profile] = await Promise.all([userProm, profileProm]);
+
+            const userObj = user ? (user.toObject ? user.toObject() : { ...user }) : { name: 'Comunidad', last_name: 'Patas Unidas' };
+            if (userObj.password) delete userObj.password;
+            if (userObj.__v !== undefined) delete userObj.__v;
 
             return {
                 profile: profile ? (profile.toObject ? profile.toObject() : profile) : { photo_profile_url: 'assets/dogs/perroLogin.jpg', number_phone: '' },
-                user: user ? (user.toObject ? user.toObject() : user) : { name: 'Comunidad', last_name: 'Patas Unidas' }
+                user: userObj
             };
         } catch (error) {
             return {
@@ -457,14 +470,20 @@ class PostService {
 
         const createdSighting = post.sightings[post.sightings.length - 1];
 
-        // Notificar al dueño de la publicación si aplica (fuera del entorno de pruebas)
-        if (process.env.NODE_ENV !== 'test' && post.owner && String(post.owner) !== String(userId)) {
-            this.notificationService.createNotifications([{
-                emiter_id: userId,
-                receiver_id: post.owner,
-                type: 'post',
-                post_id: post._id
-            }]).catch(err => console.warn('[PostService] Error enviando notificación de avistamiento:', err.message));
+        // Notificar al dueño de la publicación si aplica (y hay conexión activa a MongoDB)
+        if (post.owner && String(post.owner) !== String(userId) && mongoose.connection.readyState === 1) {
+            try {
+                await this.notificationService.createNotifications([{
+                    emiter_id: userId,
+                    receiver_id: post.owner,
+                    type: 'post',
+                    post_id: post._id
+                }]);
+            } catch (notifErr) {
+                if (process.env.NODE_ENV !== 'test') {
+                    console.warn('[PostService] Error enviando notificación de avistamiento:', notifErr.message);
+                }
+            }
         }
 
         return {

@@ -80,7 +80,6 @@ class CommentService {
                 _id: comment._id,
                 content: comment.content,
                 createdBy: comment.createdBy,
-                forum: comment.forum,
                 post: comment.post,
                 createdAt: comment.createdAt,
                 updatedAt: comment.updatedAt

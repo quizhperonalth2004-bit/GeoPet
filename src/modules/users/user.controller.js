@@ -1,7 +1,7 @@
 const userService = require('./user.service');
 
 const userController = {
-    getUsers: async (req, res) => {
+    getUsers: async (req, res, next) => {
         try {
             const usersWithProfiles = await userService.getUsersWithProfiles();
             if (!usersWithProfiles || usersWithProfiles.length === 0) {
@@ -9,11 +9,11 @@ const userController = {
             }
             res.json(usersWithProfiles);
         } catch (error) {
-            res.status(500).json({ message: error.message });
+            next(error);
         }
     },
 
-    getUserByEmail: async (req, res) => {
+    getUserByEmail: async (req, res, next) => {
         const { email } = req.params;
         try {
             const user = await userService.getUserByEmail(email);
@@ -23,11 +23,11 @@ const userController = {
             res.json(user);
         } catch (error) {
             console.error('Error al buscar usuario:', error);
-            res.status(500).json({ message: error.message });
+            next(error);
         }
     },
 
-    getUserById: async (req, res) => {
+    getUserById: async (req, res, next) => {
         const { id } = req.params;
         try {
             const user = await userService.getUserById(id);
@@ -36,11 +36,11 @@ const userController = {
             }
             res.json(user);
         } catch (error) {
-            res.status(500).json({ message: error.message });
+            next(error);
         }
     },
 
-    createUser: async (req, res) => {
+    createUser: async (req, res, next) => {
         const userData = req.body;
         try {
             const newUser = await userService.createUser(userData);
@@ -53,12 +53,12 @@ const userController = {
             } else if (error.code === 11000 && error.keyPattern && error.keyPattern.username) {
                 res.status(400).json({ message: 'El campo usuario que has ingresado no está disponible' });
             } else {
-                res.status(400).json({ message: error.message });
+                next(error);
             }
         }
     },
 
-    updatePassword: async (req, res) => {
+    updatePassword: async (req, res, next) => {
         const { email } = req.params;
         const { password, currentPassword, oldPassword } = req.body;
 
@@ -82,15 +82,12 @@ const userController = {
             }
             res.status(200).json({ message: 'Contraseña actualizada con éxito.' });
         } catch (error) {
-            if (error.statusCode) {
-                return res.status(error.statusCode).json({ message: error.message });
-            }
             console.error('Error al actualizar la contraseña:', error);
-            res.status(500).json({ message: 'Hubo un error al actualizar la contraseña. Por favor, inténtalo de nuevo más tarde.' });
+            next(error);
         }
     },
 
-    updateInteraction: async (req, res) => {
+    updateInteraction: async (req, res, next) => {
         const { userId } = req.params;
         try {
             const user = await userService.updateInteraction(userId);
@@ -100,21 +97,21 @@ const userController = {
             res.status(200).json({ message: 'Última interacción actualizada' });
         } catch (error) {
             console.error('Error al actualizar la última interacción:', error);
-            res.status(500).json({ message: 'Error interno del servidor' });
+            next(error);
         }
     },
 
-    getUsersAll: async (req, res) => {
+    getUsersAll: async (req, res, next) => {
         try {
             const users = await userService.getAllUsers();
             res.json(users);
         } catch (error) {
             console.error('Error fetching users:', error);
-            res.status(500).json({ error: 'Error fetching users' });
+            next(error);
         }
     },
 
-    deleteUser: async (req, res) => {
+    deleteUser: async (req, res, next) => {
         try {
             const userId = req.params.id;
             const user = await userService.deleteUser(userId);
@@ -124,16 +121,16 @@ const userController = {
             res.status(200).json({ message: 'Usuario eliminado correctamente.' });
         } catch (error) {
             console.error('Error al eliminar usuario:', error);
-            res.status(500).json({ message: 'Error al eliminar el usuario.', error: error.message });
+            next(error);
         }
     },
 
-    updateUserRole: async (req, res) => {
+    updateUserRole: async (req, res, next) => {
         try {
             const userId = req.params.id;
             const { rol } = req.body;
-            if (!['admin', 'usuario', 'fundacion'].includes(rol)) {
-                return res.status(400).json({ message: 'El rol debe ser admin, usuario o fundacion.' });
+            if (!['admin', 'user', 'usuario'].includes(rol)) {
+                return res.status(400).json({ message: 'El rol debe ser admin, user o usuario.' });
             }
             const user = await userService.updateUserRole(userId, rol);
             if (!user) {
@@ -142,11 +139,11 @@ const userController = {
             res.status(200).json({ message: 'Rol actualizado exitosamente.', user });
         } catch (error) {
             console.error('Error al actualizar rol de usuario:', error);
-            res.status(500).json({ message: 'Error al actualizar el rol.', error: error.message });
+            next(error);
         }
     },
 
-    updateUserProfile: async (req, res) => {
+    updateUserProfile: async (req, res, next) => {
         try {
             const profileService = require('./profile.service');
             const targetId = req.params.id || req.user?.userId || req.body.userId || req.body._id;
@@ -160,7 +157,7 @@ const userController = {
             res.status(200).json(result);
         } catch (error) {
             console.error('Error al actualizar perfil de usuario:', error);
-            res.status(500).json({ message: 'Error al actualizar perfil.', error: error.message });
+            next(error);
         }
     }
 };

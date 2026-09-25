@@ -6,7 +6,7 @@
   "scripts": {
     "start": "node src/server.js",
     "dev": "nodemon src/server.js",
-    "test": "jest tests/ --detectOpenHandles"
+    "test": "jest --detectOpenHandles --forceExit"
   },
   "jest": {
     "testMatch": [

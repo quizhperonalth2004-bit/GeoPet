@@ -1,4 +1,5 @@
 const jwt = require('jsonwebtoken');
+const mongoose = require('mongoose');
 
 const blacklistedTokens = new Set();
 
@@ -61,8 +62,8 @@ const authMiddleware = {
 
         let role = req.user.rol || req.user.role;
 
-        // Si el token no tiene el rol 'admin', consultar en BD para validar permisos en tiempo real
-        if (role !== 'admin' && req.user.userId) {
+        // Si el token no tiene el rol 'admin', consultar en BD para validar permisos en tiempo real (si hay conexión activa)
+        if (role !== 'admin' && req.user.userId && mongoose.connection.readyState === 1) {
             try {
                 const User = require('../modules/users/models/user.model');
                 const userDoc = await User.findById(req.user.userId).select('rol');

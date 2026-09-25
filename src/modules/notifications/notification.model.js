@@ -14,7 +14,7 @@ const notificationSchema = new mongoose.Schema({
     type: {
         type: String,
         required: true,
-        enum: ['like', 'comment', 'foro', 'post']
+        enum: ['comment', 'post']
     },
     createdAt: {
         type: Date,
@@ -27,11 +27,6 @@ const notificationSchema = new mongoose.Schema({
     post_id: {
         type: mongoose.Schema.Types.ObjectId,
         ref: 'Post',
-        required: false
-    },
-    forum_id: {
-        type: mongoose.Schema.Types.ObjectId,
-        ref: 'Forum',
         required: false
     },
     comment_id: {

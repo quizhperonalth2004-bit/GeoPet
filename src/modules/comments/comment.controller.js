@@ -1,7 +1,7 @@
 const commentService = require('./comment.service');
 
 const commentController = {
-    createComment: async (req, res) => {
+    createComment: async (req, res, next) => {
         const { content, forumId } = req.body;
         const createdBy = (req.user && (req.user.userId || req.user.id || req.user._id)) || req.body.createdBy;
         try {
@@ -9,22 +9,22 @@ const commentController = {
             res.status(201).json(savedComment);
         } catch (error) {
             console.error('Error al crear comentario en foro:', error);
-            res.status(error.statusCode || 500).json({ error: error.message || 'Server error' });
+            next(error);
         }
     },
 
-    getCommentById: async (req, res) => {
+    getCommentById: async (req, res, next) => {
         const { id } = req.params;
         try {
             const responseData = await commentService.getCommentById(id);
             res.json(responseData);
         } catch (error) {
             console.error('Error al obtener el comentario:', error);
-            res.status(error.statusCode || 500).json({ error: error.message || 'Error interno del servidor' });
+            next(error);
         }
     },
 
-    createCommentPost: async (req, res) => {
+    createCommentPost: async (req, res, next) => {
         const { content, postId } = req.body;
         const createdBy = (req.user && (req.user.userId || req.user.id || req.user._id)) || req.body.createdBy;
         try {
@@ -32,7 +32,7 @@ const commentController = {
             res.status(201).json(savedComment);
         } catch (error) {
             console.error('Error al crear comentario en post:', error);
-            res.status(error.statusCode || 500).json({ error: error.message || 'Error del servidor' });
+            next(error);
         }
     }
 };

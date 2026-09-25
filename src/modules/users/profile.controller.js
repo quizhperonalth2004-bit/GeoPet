@@ -1,27 +1,27 @@
 const profileService = require('./profile.service');
 
 const profileController = {
-    createProfile: async (req, res) => {
+    createProfile: async (req, res, next) => {
         try {
             const { profile, user } = await profileService.createProfile(req.body, req.files);
             res.status(201).json({ message: 'Se ha creado un nuevo perfil para el usuario ' + user.name, profile });
         } catch (error) {
             console.error('Error al crear el perfil:', error);
-            res.status(error.statusCode || 400).json({ error: error.message || 'Error al crear el perfil' });
+            next(error);
         }
     },
 
-    getProfiles: async (req, res) => {
+    getProfiles: async (req, res, next) => {
         try {
             const profiles = await profileService.getProfiles();
             res.status(200).json(profiles);
         } catch (error) {
             console.error('Error fetching profiles:', error);
-            res.status(500).json({ error: 'Error fetching profiles' });
+            next(error);
         }
     },
 
-    getProfileByUserId: async (req, res) => {
+    getProfileByUserId: async (req, res, next) => {
         try {
             const data = await profileService.getProfileByUserId(req.params.id);
             if (!data) {
@@ -30,11 +30,11 @@ const profileController = {
             res.json(data);
         } catch (error) {
             console.error('Error en getProfileByUserId:', error);
-            res.status(500).json({ error: error.message });
+            next(error);
         }
     },
 
-    getProfileId: async (req, res) => {
+    getProfileId: async (req, res, next) => {
         try {
             const profile = await profileService.getProfileById(req.params.id);
             if (!profile) {
@@ -42,11 +42,12 @@ const profileController = {
             }
             res.status(200).json(profile);
         } catch (error) {
-            res.status(500).json({ message: 'Error del servidor', error: error.message });
+            console.error('Error en getProfileId:', error);
+            next(error);
         }
     },
 
-    updateProfile: async (req, res) => {
+    updateProfile: async (req, res, next) => {
         try {
             const profile = await profileService.updateProfile(req.params.id, req.body);
             if (!profile) {
@@ -55,11 +56,11 @@ const profileController = {
             res.status(200).json(profile);
         } catch (error) {
             console.error('Error al actualizar el perfil:', error);
-            res.status(400).json({ error: error.message });
+            next(error);
         }
     },
 
-    deleteProfile: async (req, res) => {
+    deleteProfile: async (req, res, next) => {
         try {
             const profile = await profileService.deleteProfile(req.params.id);
             if (!profile) {
@@ -67,7 +68,8 @@ const profileController = {
             }
             res.json(profile);
         } catch (error) {
-            res.status(500).json({ error: error.message });
+            console.error('Error en deleteProfile:', error);
+            next(error);
         }
     }
 };
