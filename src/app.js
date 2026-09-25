@@ -13,43 +13,20 @@ const apiRoutes = require('./routes');
 
 const app = express();
 
+// Configuración permisiva de CORS para desarrollo y móvil
+const corsOptions = {
+    origin: true, // Refleja dinámicamente cualquier origen entrante (capacitor://localhost, https://localhost, etc.)
+    credentials: true,
+    methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'OPTIONS'],
+    allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With', 'Accept']
+};
+app.use(cors(corsOptions));
+app.options('*', cors(corsOptions)); // Responder a todos los preflight OPTIONS con 200/204
+
 // Cabeceras HTTP de seguridad con Helmet
 app.use(helmet({
     crossOriginResourcePolicy: { policy: 'cross-origin' }
 }));
-
-// Whitelist explícita de orígenes móviles y desarrollo
-const allowedOrigins = [
-    'https://localhost',
-    'http://localhost',
-    'capacitor://localhost',
-    'ionic://localhost',
-    'http://localhost:3010',
-    'http://localhost:8100'
-];
-
-const corsOptions = {
-    origin: (origin, callback) => {
-        // Permitir peticiones sin cabecera Origin (apps nativas Android/iOS, CapacitorHttp, Postman, curl)
-        if (!origin) return callback(null, true);
-        if (
-            allowedOrigins.includes(origin) ||
-            origin.startsWith('capacitor://') ||
-            origin.startsWith('ionic://') ||
-            origin.endsWith('.onrender.com') ||
-            /^https?:\/\/localhost(:\d+)?$/.test(origin)
-        ) {
-            return callback(null, true);
-        }
-        return callback(null, true); // Fallback permisivo para clientes adicionales
-    },
-    credentials: true,
-    methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
-    allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With', 'Accept']
-};
-
-app.use(cors(corsOptions));
-app.options('*', cors(corsOptions));
 
 app.use(compression({
     threshold: 1024 // Solo comprimir respuestas mayores a 1 KB
