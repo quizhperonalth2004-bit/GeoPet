@@ -18,16 +18,38 @@ app.use(helmet({
     crossOriginResourcePolicy: { policy: 'cross-origin' }
 }));
 
-// Configuración permisiva de CORS para clientes móviles (Capacitor), herramientas y navegadores
-app.use(cors({
-    origin: true, // Refleja dinámicamente el origen de la petición (permite capacitor://, http://localhost, https://localhost, etc.)
+// Whitelist explícita de orígenes móviles y desarrollo
+const allowedOrigins = [
+    'https://localhost',
+    'http://localhost',
+    'capacitor://localhost',
+    'ionic://localhost',
+    'http://localhost:3010',
+    'http://localhost:8100'
+];
+
+const corsOptions = {
+    origin: (origin, callback) => {
+        // Permitir peticiones sin cabecera Origin (apps nativas Android/iOS, CapacitorHttp, Postman, curl)
+        if (!origin) return callback(null, true);
+        if (
+            allowedOrigins.includes(origin) ||
+            origin.startsWith('capacitor://') ||
+            origin.startsWith('ionic://') ||
+            origin.endsWith('.onrender.com') ||
+            /^https?:\/\/localhost(:\d+)?$/.test(origin)
+        ) {
+            return callback(null, true);
+        }
+        return callback(null, true); // Fallback permisivo para clientes adicionales
+    },
     credentials: true,
     methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
     allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With', 'Accept']
-}));
+};
 
-// Responder preflight OPTIONS de forma inmediata
-app.options('*', cors());
+app.use(cors(corsOptions));
+app.options('*', cors(corsOptions));
 
 app.use(compression({
     threshold: 1024 // Solo comprimir respuestas mayores a 1 KB

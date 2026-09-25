@@ -21,10 +21,12 @@ const loginDto = z.object({
  * DTO para inicio de sesión federado con Google OAuth
  */
 const googleLoginDto = z.object({
-    idToken: z.string({
-        message: 'Token de Google no proporcionado.'
-    })
-    .min(1, 'Token de Google no proporcionado.')
+    idToken: z.string().min(1).optional(),
+    token: z.string().min(1).optional(),
+    credential: z.string().min(1).optional(),
+    accessToken: z.string().min(1).optional()
+}).passthrough().refine(data => data.idToken || data.token || data.credential || data.accessToken, {
+    message: 'Token de Google no proporcionado.'
 });
 
 /**
