@@ -91,11 +91,21 @@ app.get('/health', (req, res) => {
     });
 });
 
+// Middleware global de captura de logs de peticiones entrantes
+app.use((req, res, next) => {
+    console.log(`[REQ ENTRANTE] ${req.method} ${req.originalUrl}`);
+    next();
+});
+
+// Montaje de rutas con redundancia total para garantizar compatibilidad absoluta con cualquier cliente
+app.use('/api/v1/auth', require('./modules/auth/auth.routes'));
+app.use('/api/auth', require('./modules/auth/auth.routes'));
+app.use('/auth', require('./modules/auth/auth.routes'));
+app.post('/google', (req, res, next) => require('./modules/auth/auth.controller').googleLogin(req, res, next));
+app.post('/google-login', (req, res, next) => require('./modules/auth/auth.controller').googleLogin(req, res, next));
+
 // Montar todas las rutas API bajo /api
 app.use('/api', apiRoutes);
-
-// Montar también bajo /auth directamente para compatibilidad absoluta con clientes externos
-app.use('/auth', require('./modules/auth/auth.routes'));
 
 // Manejo de rutas no encontradas (404)
 app.use(notFoundHandler);

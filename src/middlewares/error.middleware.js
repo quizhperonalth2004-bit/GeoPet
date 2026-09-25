@@ -9,7 +9,8 @@ const notFoundHandler = (req, res, next) => {
         success: false,
         statusCode: 404,
         message,
-        error: message
+        error: 'Ruta no encontrada',
+        requestedUrl: req.originalUrl
     });
 };
 
