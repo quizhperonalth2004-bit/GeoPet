@@ -307,6 +307,7 @@ class AuthService {
 
         // Buscar si el usuario ya existe en la base de datos
         let user = await this.userModel.findOne({ email });
+        console.log("DEBUG: Usuario encontrado en MongoDB:", user);
         let profileDoc = null;
         const Profile = require('../users/models/profile.model');
 
@@ -374,44 +375,8 @@ class AuthService {
                 }
             }
         } else {
-            // Validar proveedor de autenticación
-            if (user.auth_provider === 'local') {
-                throw new ConflictError('Este correo ya está registrado con contraseña. Por favor, inicia sesión con tus credenciales habituales.');
-            }
-
-            // Actualizar última interacción
-            user.last_interaction = new Date();
-            if (picture) {
-                user.profile_picture = picture;
-            }
-            await user.save();
-
-            // Si el usuario YA existe en MongoDB, sincronizar foto con documento Profile
-            try {
-                profileDoc = await Profile.findOne({ user: user._id });
-                if (profileDoc) {
-                    if (picture) {
-                        profileDoc.photo_profile_url = picture;
-                        profileDoc.profile_picture = picture;
-                        await profileDoc.save();
-                    }
-                } else {
-                    profileDoc = new Profile({
-                        user: user._id,
-                        number_phone: 0,
-                        profile_picture: picture || 'assets/default-avatar.png',
-                        photo_profile_url: picture || 'assets/default-avatar.png',
-                        photo_cover_url: '',
-                        word_description: 'Amante de las mascotas 🐾',
-                        description: 'Cuenta verificada con Google Sign-In'
-                    });
-                    await profileDoc.save();
-                }
-            } catch (profileErr) {
-                console.error('[GOOGLE_AUTH_DEBUG] Error al sincronizar Profile existente:', profileErr.stack || profileErr);
-            }
-        }
-
+            
+            console.log("Este usuario ya existe", user.email)
         // Generar token JWT de la aplicación
         const jwtSecret = process.env.JWT_SECRET;
         if (!jwtSecret) {
@@ -447,7 +412,11 @@ class AuthService {
             user: userObj,
             profile: profileObj
         };
-    }
+    
+        }
+
+        }
+    
 }
 
 const authService = new AuthService();
